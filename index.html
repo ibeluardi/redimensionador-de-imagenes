@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Redimensionador de imágenes</title>
+<style>
+  :root {
+    --bg: #15171B;
+    --surface: #1D2025;
+    --surface-2: #262A30;
+    --line: #33383F;
+    --text: #EDEBE6;
+    --text-dim: #9A9FA6;
+    --accent: #E8A33D;
+    --accent-dim: #7A5A24;
+    --ok: #4FD1B5;
+    --danger: #E2695A;
+    --radius: 3px;
+    font-family: -apple-system, "Segoe UI", "Inter", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 20px;
+    display: flex;
+    justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 960px; }
+
+  header { margin-bottom: 22px; }
+  .kicker {
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    color: var(--text-dim);
+    font-size: 14.5px;
+    margin: 0;
+    max-width: 65ch;
+    line-height: 1.5;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 11px 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom: none;
+  }
+  .tab-btn.active { color: var(--text); background: var(--surface); box-shadow: inset 0 2px 0 var(--accent); }
+  .tab-btn:not(.active) { background: #17191D; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 0 var(--radius) var(--radius) var(--radius);
+    overflow: hidden;
+  }
+  .tab-page { display: none; }
+  .tab-page.active { display: block; }
+
+  .dropzone {
+    border-bottom: 1px solid var(--line);
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .dropzone.drag { background: var(--surface-2); }
+  .dropzone .icon { width: 34px; height: 34px; margin: 0 auto 14px auto; color: var(--text-dim); }
+  .dropzone .title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .dropzone .sub { font-size: 13px; color: var(--text-dim); }
+  .dropzone input { display: none; }
+
+  .workspace { display: none; }
+  .workspace.active { display: block; }
+
+  .body-grid { display: grid; grid-template-columns: 1fr 270px; }
+  @media (max-width: 640px) { .body-grid { grid-template-columns: 1fr; } }
+
+  .preview-side {
+    padding: 24px;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 340px;
+    background:
+      linear-gradient(45deg, #23262b 25%, transparent 25%),
+      linear-gradient(-45deg, #23262b 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #23262b 75%),
+      linear-gradient(-45deg, transparent 75%, #23262b 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    background-color: var(--surface);
+  }
+  canvas.preview { max-width: 100%; max-height: 340px; box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
+  .dims-readout { margin-top: 14px; font-size: 12.5px; color: var(--text-dim); }
+  .dims-readout b { color: var(--text); font-weight: 600; }
+
+  .controls { padding: 22px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
+  .dims-row { display: flex; align-items: center; gap: 8px; }
+  input[type="number"], input[type="text"] {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line);
+    color: var(--text); border-radius: var(--radius); padding: 8px 9px; font-size: 14px;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .lock-btn {
+    flex-shrink: 0; width: 32px; height: 32px; background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: var(--radius); color: var(--text-dim);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .lock-btn.on { color: var(--accent); border-color: var(--accent-dim); }
+  .times { color: var(--text-dim); font-size: 13px; }
+
+  select {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line);
+    color: var(--text); border-radius: var(--radius); padding: 8px 9px; font-size: 14px;
+  }
+
+  .quality-row { display: flex; align-items: center; gap: 10px; }
+  .quality-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .quality-row span { font-size: 12.5px; color: var(--text-dim); width: 34px; text-align: right; }
+
+  .btn { width: 100%; padding: 10px 12px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: var(--accent); color: #1A1300; margin-top: 4px; }
+  .btn-primary:hover { background: #f0ae4c; }
+  .btn-ghost { background: transparent; color: var(--text-dim); border-color: var(--line); margin-top: 8px; }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+  .btn-small { width: auto; padding: 7px 10px; font-size: 12.5px; }
+
+  .warn { margin-top: 10px; font-size: 12px; color: var(--danger); line-height: 1.4; display: none; }
+  .warn.show { display: block; }
+
+  /* preset management */
+  .preset-list { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 6px; }
+  .preset-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 11px; font-size: 13px; border-bottom: 1px solid var(--line);
+    background: var(--surface-2);
+  }
+  .preset-row:last-child { border-bottom: none; }
+  .preset-row .name { font-weight: 600; }
+  .preset-row .dims { color: var(--text-dim); font-size: 12px; margin-left: 6px; }
+  .preset-row .del {
+    background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 15px; line-height: 1;
+    padding: 2px 6px;
+  }
+  .preset-row .del:hover { color: var(--danger); }
+
+  .add-preset-row { display: flex; gap: 6px; margin-top: 10px; }
+  .add-preset-row input:nth-child(1) { flex: 2; }
+  .add-preset-row input:nth-child(2), .add-preset-row input:nth-child(3) { flex: 1; }
+
+  footer { margin-top: 16px; font-size: 12px; color: var(--text-dim); text-align: center; }
+  footer a { color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">HERRAMIENTA · REDIMENSIONAR IMÁGENES</div>
+    <h1>Ajustá una imagen a la medida exacta</h1>
+    <p>Elegí ancho y alto manualmente, o subí la imagen e indicá el formato (por ejemplo "push") para que la redimensione automáticamente a esa medida. Todo se procesa en el navegador, sin subir nada a un servidor.</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="manual">Medida manual</button>
+    <button class="tab-btn" data-tab="preset">Por formato</button>
+  </div>
+
+  <!-- TAB 1: MANUAL -->
+  <div class="panel tab-page active" id="page-manual">
+    <div class="dropzone" id="dropzoneManual">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5M7 9l5-5 5 5M12 4v13"/></svg>
+      <div class="title">Arrastrá una imagen acá o hacé clic para elegirla</div>
+      <div class="sub">PNG, JPG o WEBP</div>
+      <input type="file" id="fileInputManual" accept="image/*">
+    </div>
+
+    <div class="workspace" id="workspaceManual">
+      <div class="body-grid">
+        <div class="preview-side">
+          <canvas class="preview" id="canvasManual"></canvas>
+          <div class="dims-readout">Original: <b id="origDimsManual">—</b> &nbsp;→&nbsp; Salida: <b id="outDimsManual">—</b></div>
+        </div>
+        <div class="controls">
+          <div class="field">
+            <label>Medidas (px)</label>
+            <div class="dims-row">
+              <input type="number" id="widthInput" min="1" placeholder="Ancho">
+              <span class="times">×</span>
+              <input type="number" id="heightInput" min="1" placeholder="Alto">
+              <button class="lock-btn on" id="lockBtn" title="Mantener proporción">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Formato de salida</label>
+            <select id="formatSelectManual">
+              <option value="image/png">PNG</option>
+              <option value="image/jpeg">JPG</option>
+              <option value="image/webp">WEBP</option>
+            </select>
+          </div>
+          <div class="field" id="qualityFieldManual" style="display:none;">
+            <label>Calidad</label>
+            <div class="quality-row">
+              <input type="range" id="qualityRangeManual" min="10" max="100" value="90">
+              <span id="qualityValManual">90%</span>
+            </div>
+          </div>
+          <div class="warn" id="ratioWarnManual">La medida elegida no respeta la proporción original: la imagen se verá deformada.</div>
+          <button class="btn btn-primary" id="downloadBtnManual">Descargar imagen</button>
+          <button class="btn btn-ghost" id="resetBtnManual">Elegir otra imagen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: PRESET -->
+  <div class="panel tab-page" id="page-preset">
+    <div class="dropzone" id="dropzonePreset">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5M7 9l5-5 5 5M12 4v13"/></svg>
+      <div class="title">Arrastrá una imagen acá o hacé clic para elegirla</div>
+      <div class="sub">PNG, JPG o WEBP</div>
+      <input type="file" id="fileInputPreset" accept="image/*">
+    </div>
+
+    <div class="workspace" id="workspacePreset">
+      <div class="body-grid">
+        <div class="preview-side">
+          <canvas class="preview" id="canvasPreset"></canvas>
+          <div class="dims-readout">Original: <b id="origDimsPreset">—</b> &nbsp;→&nbsp; Salida: <b id="outDimsPreset">—</b></div>
+        </div>
+        <div class="controls">
+          <div class="field">
+            <label>Formato</label>
+            <select id="presetSelect"></select>
+          </div>
+          <div class="field">
+            <label>Formato de salida</label>
+            <select id="formatSelectPreset">
+              <option value="image/png">PNG</option>
+              <option value="image/jpeg">JPG</option>
+              <option value="image/webp">WEBP</option>
+            </select>
+          </div>
+          <div class="field" id="qualityFieldPreset" style="display:none;">
+            <label>Calidad</label>
+            <div class="quality-row">
+              <input type="range" id="qualityRangePreset" min="10" max="100" value="90">
+              <span id="qualityValPreset">90%</span>
+            </div>
+          </div>
+          <div class="warn" id="ratioWarnPreset">Esta medida no respeta la proporción original: la imagen se verá deformada.</div>
+          <button class="btn btn-primary" id="downloadBtnPreset">Descargar imagen</button>
+          <button class="btn btn-ghost" id="resetBtnPreset">Elegir otra imagen</button>
+
+          <div class="field" style="margin-top:22px; border-top:1px solid var(--line); padding-top:16px;">
+            <label>Gestionar formatos</label>
+            <div class="preset-list" id="presetList"></div>
+            <div class="add-preset-row">
+              <input type="text" id="newPresetName" placeholder="Nombre (ej. push)">
+              <input type="number" id="newPresetW" placeholder="Ancho">
+              <input type="number" id="newPresetH" placeholder="Alto">
+            </div>
+            <button class="btn btn-ghost btn-small" id="addPresetBtn" style="width:100%; margin-top:8px;">+ Agregar formato</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Se ejecuta enteramente en tu navegador — ninguna imagen se envía a un servidor. Los formatos que agregues se guardan solo mientras tengas la página abierta.</footer>
+</div>
+
+<script>
+  // ---------- tabs ----------
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('page-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ================= MANUAL TAB =================
+  (function() {
+    const dropzone = document.getElementById('dropzoneManual');
+    const fileInput = document.getElementById('fileInputManual');
+    const workspace = document.getElementById('workspaceManual');
+    const canvas = document.getElementById('canvasManual');
+    const ctx = canvas.getContext('2d');
+    const widthInput = document.getElementById('widthInput');
+    const heightInput = document.getElementById('heightInput');
+    const lockBtn = document.getElementById('lockBtn');
+    const origDimsEl = document.getElementById('origDimsManual');
+    const outDimsEl = document.getElementById('outDimsManual');
+    const formatSelect = document.getElementById('formatSelectManual');
+    const qualityField = document.getElementById('qualityFieldManual');
+    const qualityRange = document.getElementById('qualityRangeManual');
+    const qualityVal = document.getElementById('qualityValManual');
+    const downloadBtn = document.getElementById('downloadBtnManual');
+    const resetBtn = document.getElementById('resetBtnManual');
+    const ratioWarn = document.getElementById('ratioWarnManual');
+
+    let img = null, origW = 0, origH = 0, aspectLocked = true, sourceFileName = 'imagen';
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault(); dropzone.classList.remove('drag');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) return;
+      sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'imagen';
+      const reader = new FileReader();
+      reader.onload = e => {
+        const image = new Image();
+        image.onload = () => {
+          img = image; origW = image.naturalWidth; origH = image.naturalHeight;
+          widthInput.value = origW; heightInput.value = origH;
+          origDimsEl.textContent = origW + ' × ' + origH + ' px';
+          workspace.classList.add('active');
+          render();
+        };
+        image.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    lockBtn.addEventListener('click', () => { aspectLocked = !aspectLocked; lockBtn.classList.toggle('on', aspectLocked); });
+    widthInput.addEventListener('input', () => {
+      if (aspectLocked && origW) heightInput.value = Math.round(widthInput.value * (origH / origW));
+      render();
+    });
+    heightInput.addEventListener('input', () => {
+      if (aspectLocked && origH) widthInput.value = Math.round(heightInput.value * (origW / origH));
+      render();
+    });
+    formatSelect.addEventListener('change', () => {
+      qualityField.style.display = formatSelect.value === 'image/png' ? 'none' : 'block';
+      render();
+    });
+    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; render(); });
+
+    function render() {
+      if (!img) return;
+      const w = Math.max(1, parseInt(widthInput.value) || 1);
+      const h = Math.max(1, parseInt(heightInput.value) || 1);
+      canvas.width = w; canvas.height = h;
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      outDimsEl.textContent = w + ' × ' + h + ' px';
+      ratioWarn.classList.toggle('show', Math.abs((origW / origH) - (w / h)) > 0.01);
+    }
+
+    downloadBtn.addEventListener('click', () => {
+      const format = formatSelect.value;
+      const quality = format === 'image/png' ? undefined : qualityRange.value / 100;
+      const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${sourceFileName}-${canvas.width}x${canvas.height}.${ext}`; a.click();
+        URL.revokeObjectURL(url);
+      }, format, quality);
+    });
+
+    resetBtn.addEventListener('click', () => { img = null; workspace.classList.remove('active'); fileInput.value = ''; });
+  })();
+
+  // ================= PRESET TAB =================
+  (function() {
+    const dropzone = document.getElementById('dropzonePreset');
+    const fileInput = document.getElementById('fileInputPreset');
+    const workspace = document.getElementById('workspacePreset');
+    const canvas = document.getElementById('canvasPreset');
+    const ctx = canvas.getContext('2d');
+    const origDimsEl = document.getElementById('origDimsPreset');
+    const outDimsEl = document.getElementById('outDimsPreset');
+    const presetSelect = document.getElementById('presetSelect');
+    const formatSelect = document.getElementById('formatSelectPreset');
+    const qualityField = document.getElementById('qualityFieldPreset');
+    const qualityRange = document.getElementById('qualityRangePreset');
+    const qualityVal = document.getElementById('qualityValPreset');
+    const downloadBtn = document.getElementById('downloadBtnPreset');
+    const resetBtn = document.getElementById('resetBtnPreset');
+    const ratioWarn = document.getElementById('ratioWarnPreset');
+    const presetListEl = document.getElementById('presetList');
+    const newPresetName = document.getElementById('newPresetName');
+    const newPresetW = document.getElementById('newPresetW');
+    const newPresetH = document.getElementById('newPresetH');
+    const addPresetBtn = document.getElementById('addPresetBtn');
+
+    let img = null, origW = 0, origH = 0, sourceFileName = 'imagen';
+    let presets = [
+      { name: 'push', w: 452, h: 226 },
+      { name: 'banner', w: 728, h: 90 },
+      { name: 'story', w: 1080, h: 1920 }
+    ];
+
+    function renderPresetSelect() {
+      presetSelect.innerHTML = '';
+      presets.forEach((p, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${p.name} — ${p.w}×${p.h}`;
+        presetSelect.appendChild(opt);
+      });
+    }
+    function renderPresetList() {
+      presetListEl.innerHTML = '';
+      presets.forEach((p, i) => {
+        const row = document.createElement('div');
+        row.className = 'preset-row';
+        row.innerHTML = `<div><span class="name">${p.name}</span><span class="dims">${p.w}×${p.h}</span></div>`;
+        const del = document.createElement('button');
+        del.className = 'del'; del.textContent = '✕';
+        del.addEventListener('click', () => {
+          presets.splice(i, 1);
+          renderPresetSelect(); renderPresetList();
+          if (presets.length && img) applyPreset();
+        });
+        row.appendChild(del);
+        presetListEl.appendChild(row);
+      });
+    }
+    renderPresetSelect(); renderPresetList();
+
+    addPresetBtn.addEventListener('click', () => {
+      const name = newPresetName.value.trim();
+      const w = parseInt(newPresetW.value), h = parseInt(newPresetH.value);
+      if (!name || !w || !h) return;
+      presets.push({ name, w, h });
+      newPresetName.value = ''; newPresetW.value = ''; newPresetH.value = '';
+      renderPresetSelect(); renderPresetList();
+      presetSelect.value = presets.length - 1;
+      if (img) applyPreset();
+    });
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault(); dropzone.classList.remove('drag');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) return;
+      sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'imagen';
+      const reader = new FileReader();
+      reader.onload = e => {
+        const image = new Image();
+        image.onload = () => {
+          img = image; origW = image.naturalWidth; origH = image.naturalHeight;
+          origDimsEl.textContent = origW + ' × ' + origH + ' px';
+          workspace.classList.add('active');
+          if (!presets.length) return;
+          if (presetSelect.value === '') presetSelect.value = 0;
+          applyPreset();
+        };
+        image.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    presetSelect.addEventListener('change', applyPreset);
+    formatSelect.addEventListener('change', () => {
+      qualityField.style.display = formatSelect.value === 'image/png' ? 'none' : 'block';
+      applyPreset();
+    });
+    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; applyPreset(); });
+
+    function applyPreset() {
+      if (!img || !presets.length) return;
+      const p = presets[presetSelect.value] || presets[0];
+      canvas.width = p.w; canvas.height = p.h;
+      ctx.clearRect(0, 0, p.w, p.h);
+      ctx.drawImage(img, 0, 0, p.w, p.h);
+      outDimsEl.textContent = p.w + ' × ' + p.h + ' px';
+      ratioWarn.classList.toggle('show', Math.abs((origW / origH) - (p.w / p.h)) > 0.01);
+    }
+
+    downloadBtn.addEventListener('click', () => {
+      if (!img) return;
+      const p = presets[presetSelect.value] || presets[0];
+      const format = formatSelect.value;
+      const quality = format === 'image/png' ? undefined : qualityRange.value / 100;
+      const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${sourceFileName}-${p.name}-${p.w}x${p.h}.${ext}`; a.click();
+        URL.revokeObjectURL(url);
+      }, format, quality);
+    });
+
+    resetBtn.addEventListener('click', () => { img = null; workspace.classList.remove('active'); fileInput.value = ''; });
+  })();
+</script>
+</body>
+</html>
