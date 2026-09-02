@@ -189,6 +189,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="manual">Medida manual</button>
     <button class="tab-btn" data-tab="preset">Por formato</button>
+    <button class="tab-btn" data-tab="convert">Convertir formato</button>
   </div>
 
   <!-- TAB 1: MANUAL -->
@@ -290,6 +291,45 @@
             </div>
             <button class="btn btn-ghost btn-small" id="addPresetBtn" style="width:100%; margin-top:8px;">+ Agregar formato</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: CONVERT -->
+  <div class="panel tab-page" id="page-convert">
+    <div class="dropzone" id="dropzoneConvert">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5M7 9l5-5 5 5M12 4v13"/></svg>
+      <div class="title">Arrastrá una imagen acá o hacé clic para elegirla</div>
+      <div class="sub">PNG, JPG o WEBP</div>
+      <input type="file" id="fileInputConvert" accept="image/*">
+    </div>
+
+    <div class="workspace" id="workspaceConvert">
+      <div class="body-grid">
+        <div class="preview-side">
+          <canvas class="preview" id="canvasConvert"></canvas>
+          <div class="dims-readout">Formato original: <b id="origFormatConvert">—</b> &nbsp;→&nbsp; Nuevo formato: <b id="outFormatConvert">—</b></div>
+        </div>
+        <div class="controls">
+          <div class="field">
+            <label>Convertir a</label>
+            <select id="formatSelectConvert">
+              <option value="image/png">PNG</option>
+              <option value="image/jpeg">JPG</option>
+              <option value="image/webp">WEBP</option>
+            </select>
+          </div>
+          <div class="field" id="qualityFieldConvert" style="display:none;">
+            <label>Calidad</label>
+            <div class="quality-row">
+              <input type="range" id="qualityRangeConvert" min="10" max="100" value="90">
+              <span id="qualityValConvert">90%</span>
+            </div>
+          </div>
+          <div class="warn show" id="jpgWarnConvert" style="display:none;">JPG no admite transparencia: el fondo transparente se rellenará de blanco.</div>
+          <button class="btn btn-primary" id="downloadBtnConvert">Descargar imagen</button>
+          <button class="btn btn-ghost" id="resetBtnConvert">Elegir otra imagen</button>
         </div>
       </div>
     </div>
@@ -527,6 +567,90 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = `${sourceFileName}-${p.name}-${p.w}x${p.h}.${ext}`; a.click();
+        URL.revokeObjectURL(url);
+      }, format, quality);
+    });
+
+    resetBtn.addEventListener('click', () => { img = null; workspace.classList.remove('active'); fileInput.value = ''; });
+  })();
+
+  // ================= CONVERT TAB =================
+  (function() {
+    const dropzone = document.getElementById('dropzoneConvert');
+    const fileInput = document.getElementById('fileInputConvert');
+    const workspace = document.getElementById('workspaceConvert');
+    const canvas = document.getElementById('canvasConvert');
+    const ctx = canvas.getContext('2d');
+    const origFormatEl = document.getElementById('origFormatConvert');
+    const outFormatEl = document.getElementById('outFormatConvert');
+    const formatSelect = document.getElementById('formatSelectConvert');
+    const qualityField = document.getElementById('qualityFieldConvert');
+    const qualityRange = document.getElementById('qualityRangeConvert');
+    const qualityVal = document.getElementById('qualityValConvert');
+    const jpgWarn = document.getElementById('jpgWarnConvert');
+    const downloadBtn = document.getElementById('downloadBtnConvert');
+    const resetBtn = document.getElementById('resetBtnConvert');
+
+    let img = null, sourceFileName = 'imagen', sourceMime = '';
+
+    const extLabels = { 'image/png': 'PNG', 'image/jpeg': 'JPG', 'image/webp': 'WEBP' };
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault(); dropzone.classList.remove('drag');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) return;
+      sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'imagen';
+      sourceMime = file.type;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const image = new Image();
+        image.onload = () => {
+          img = image;
+          origFormatEl.textContent = extLabels[sourceMime] || (sourceMime.split('/')[1] || '—').toUpperCase();
+          workspace.classList.add('active');
+          render();
+        };
+        image.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    formatSelect.addEventListener('change', () => {
+      qualityField.style.display = formatSelect.value === 'image/png' ? 'none' : 'block';
+      render();
+    });
+    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; render(); });
+
+    function render() {
+      if (!img) return;
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (formatSelect.value === 'image/jpeg') {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      ctx.drawImage(img, 0, 0);
+      outFormatEl.textContent = extLabels[formatSelect.value];
+      jpgWarn.style.display = (formatSelect.value === 'image/jpeg' && sourceMime !== 'image/jpeg') ? 'block' : 'none';
+    }
+
+    downloadBtn.addEventListener('click', () => {
+      if (!img) return;
+      const format = formatSelect.value;
+      const quality = format === 'image/png' ? undefined : qualityRange.value / 100;
+      const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${sourceFileName}.${ext}`; a.click();
         URL.revokeObjectURL(url);
       }, format, quality);
     });
