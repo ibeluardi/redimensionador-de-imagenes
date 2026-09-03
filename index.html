@@ -793,6 +793,9 @@
       const wPct = (scaledW / W) * 100;
       const hPct = (scaledH / H) * 100;
 
+      // escapamos comillas por si el link las trajera, para no romper el atributo onclick
+      const safeUrl = finalUrl.replace(/"/g, '%22').replace(/'/g, '%27');
+
       const html = `<!-- HTML Generado por herramienta interna -->
 <!DOCTYPE html>
 <html lang="es">
@@ -801,9 +804,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="ad.size" content="width=${W},height=${H}">
 <title>Creative</title>
-<script type="text/javascript">
-  var clickTag = "${finalUrl}";
-</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background-color: rgb(0, 0, 0); cursor: pointer; }
@@ -824,7 +824,7 @@
   }
 </style>
 </head>
-<body onclick="window.open(window.clickTag, '_blank')">
+<body onclick="window.open('${safeUrl}', '_blank')">
   <div class="stage-wrap">
     <div class="stage">
       <img src="${imgDataUrl}" alt=""
