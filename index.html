@@ -197,7 +197,7 @@
     <button class="tab-btn active" data-tab="manual" data-desc="Subís una imagen e indicás el ancho y alto exactos a los que querés llevarla, manteniendo o no la proporción original.">Medida manual</button>
     <button class="tab-btn" data-tab="preset" data-desc="Elegís un formato ya guardado (push, logo, itt, banner, etc.) y la imagen se redimensiona automáticamente a esa medida. También podés agregar o borrar formatos.">Por formato</button>
     <button class="tab-btn" data-tab="convert" data-desc="Cambiás el formato de archivo de la imagen (por ejemplo de PNG a JPG o WEBP) sin modificar sus dimensiones.">Convertir formato</button>
-    <button class="tab-btn" data-tab="banner" data-desc="Generás un HTML exportable de 120×240 con la imagen embebida y un link de redirección: la imagen se agranda o achica para entrar completa (sin recortes) y todo el creative es clickeable.">Banner exportable</button>
+    <button class="tab-btn" data-tab="banner" data-desc="Generás un HTML exportable de 120×240 con la imagen embebida, un link de redirección y, opcionalmente, un pixel de tracking de impresiones: la imagen se agranda o achica para entrar completa (sin recortes) y todo el creative es clickeable.">Banner exportable</button>
   </div>
   <p class="tab-desc" id="tabDesc"></p>
 
@@ -364,6 +364,10 @@
           <div class="field">
             <label>Link de redirección</label>
             <input type="text" id="urlInputBanner" placeholder="https://ejemplo.com/promo?utm_source=...">
+          </div>
+          <div class="field">
+            <label>Tracking de impresiones (opcional)</label>
+            <input type="text" id="trackingInputBanner" placeholder="https://tracking.ejemplo.com/pixel?... (opcional)">
           </div>
           <div class="warn" id="noUrlWarnBanner">Ingresá un link antes de exportar.</div>
           <button class="btn btn-primary" id="exportBtnBanner">Descargar HTML</button>
@@ -709,6 +713,7 @@
     const ctx = canvas.getContext('2d');
     const dimsEl = document.getElementById('dimsBanner');
     const urlInput = document.getElementById('urlInputBanner');
+    const trackingInput = document.getElementById('trackingInputBanner');
     const exportBtn = document.getElementById('exportBtnBanner');
     const resetBtn = document.getElementById('resetBtnBanner');
     const noUrlWarn = document.getElementById('noUrlWarnBanner');
@@ -807,6 +812,14 @@
       // escapamos comillas por si el link las trajera, para no romper el atributo onclick
       const safeUrl = finalUrl.replace(/"/g, '%22').replace(/'/g, '%27');
 
+      // tracking de impresiones: opcional. Si no se cargó nada, no se agrega nada al HTML.
+      const trackingUrl = trackingInput.value.trim();
+      let impressionPixel = '';
+      if (trackingUrl) {
+        const safeTrackingUrl = trackingUrl.replace(/"/g, '%22').replace(/'/g, '%27');
+        impressionPixel = `  <img src="${safeTrackingUrl}" width="1" height="1" alt="" style="position:absolute;left:-9999px;top:-9999px;">\n`;
+      }
+
       const html = `<!-- HTML Generado por herramienta interna -->
 <!DOCTYPE html>
 <html lang="es">
@@ -836,7 +849,7 @@
 </style>
 </head>
 <body onclick="window.open('${safeUrl}', '_blank')">
-  <div class="stage-wrap">
+${impressionPixel}  <div class="stage-wrap">
     <div class="stage">
       <img src="${imgDataUrl}" alt=""
         style="left:${leftPct}%; top:${topPct}%; width:${wPct}%; height:${hPct}%;">
@@ -857,6 +870,7 @@
     resetBtn.addEventListener('click', () => {
       img = null; imgDataUrl = null; layout = null;
       workspace.classList.remove('active'); fileInput.value = ''; urlInput.value = '';
+      trackingInput.value = '';
       noUrlWarn.classList.remove('show');
     });
   })();
