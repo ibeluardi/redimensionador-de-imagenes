@@ -190,6 +190,7 @@
     <button class="tab-btn active" data-tab="manual">Medida manual</button>
     <button class="tab-btn" data-tab="preset">Por formato</button>
     <button class="tab-btn" data-tab="convert">Convertir formato</button>
+    <button class="tab-btn" data-tab="banner">Banner exportable</button>
   </div>
 
   <!-- TAB 1: MANUAL -->
@@ -330,6 +331,34 @@
           <div class="warn show" id="jpgWarnConvert" style="display:none;">JPG no admite transparencia: el fondo transparente se rellenará de blanco.</div>
           <button class="btn btn-primary" id="downloadBtnConvert">Descargar imagen</button>
           <button class="btn btn-ghost" id="resetBtnConvert">Elegir otra imagen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: BANNER -->
+  <div class="panel tab-page" id="page-banner">
+    <div class="dropzone" id="dropzoneBanner">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5M7 9l5-5 5 5M12 4v13"/></svg>
+      <div class="title">Arrastrá una imagen acá o hacé clic para elegirla</div>
+      <div class="sub">PNG, JPG o WEBP</div>
+      <input type="file" id="fileInputBanner" accept="image/*">
+    </div>
+
+    <div class="workspace" id="workspaceBanner">
+      <div class="body-grid">
+        <div class="preview-side">
+          <canvas class="preview" id="canvasBanner"></canvas>
+          <div class="dims-readout" id="dimsBanner">—</div>
+        </div>
+        <div class="controls">
+          <div class="field">
+            <label>Link de redirección</label>
+            <input type="text" id="urlInputBanner" placeholder="https://ejemplo.com/promo?utm_source=...">
+          </div>
+          <div class="warn" id="noUrlWarnBanner">Ingresá un link antes de exportar.</div>
+          <button class="btn btn-primary" id="exportBtnBanner">Descargar HTML</button>
+          <button class="btn btn-ghost" id="resetBtnBanner">Elegir otra imagen</button>
         </div>
       </div>
     </div>
@@ -656,6 +685,146 @@
     });
 
     resetBtn.addEventListener('click', () => { img = null; workspace.classList.remove('active'); fileInput.value = ''; });
+  })();
+
+  // ================= BANNER TAB =================
+  (function() {
+    const W = 320, H = 480;
+    const dropzone = document.getElementById('dropzoneBanner');
+    const fileInput = document.getElementById('fileInputBanner');
+    const workspace = document.getElementById('workspaceBanner');
+    const canvas = document.getElementById('canvasBanner');
+    const ctx = canvas.getContext('2d');
+    const dimsEl = document.getElementById('dimsBanner');
+    const urlInput = document.getElementById('urlInputBanner');
+    const exportBtn = document.getElementById('exportBtnBanner');
+    const resetBtn = document.getElementById('resetBtnBanner');
+    const noUrlWarn = document.getElementById('noUrlWarnBanner');
+
+    let img = null, imgDataUrl = null, sourceFileName = 'banner', layout = null;
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault(); dropzone.classList.remove('drag');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) return;
+      sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'banner';
+      const reader = new FileReader();
+      reader.onload = e => {
+        imgDataUrl = e.target.result;
+        const image = new Image();
+        image.onload = () => {
+          img = image;
+          workspace.classList.add('active');
+          render();
+        };
+        image.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function computeLayout() {
+      // "contain": la imagen siempre entra completa dentro de 320x480, sin recortes.
+      // Se agranda o achica según haga falta; el eje sobrante queda con franjas negras.
+      const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+      const scaledW = img.naturalWidth * scale;
+      const scaledH = img.naturalHeight * scale;
+      const left = (W - scaledW) / 2;
+      const top = (H - scaledH) / 2;
+      return { scaledW, scaledH, left, top };
+    }
+
+    function render() {
+      if (!img) return;
+      canvas.width = W; canvas.height = H;
+      layout = computeLayout();
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(img, layout.left, layout.top, layout.scaledW, layout.scaledH);
+
+      // cruz decorativa (también clickeable en el export, va sobre el link entero)
+      const cx = W - 21, cy = 21;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 13, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.6;
+      const r = 5;
+      ctx.beginPath();
+      ctx.moveTo(cx - r, cy - r); ctx.lineTo(cx + r, cy + r);
+      ctx.moveTo(cx + r, cy - r); ctx.lineTo(cx - r, cy + r);
+      ctx.stroke();
+
+      const vBars = Math.round(H - layout.scaledH);
+      const hBars = Math.round(W - layout.scaledW);
+      if (vBars > 0) {
+        dimsEl.innerHTML = `Franjas negras: <b>${vBars}px</b> totales (arriba y abajo)`;
+      } else if (hBars > 0) {
+        dimsEl.innerHTML = `Franjas negras: <b>${hBars}px</b> totales (a los costados)`;
+      } else {
+        dimsEl.innerHTML = `La imagen ajusta exacto a 320×480`;
+      }
+    }
+
+    urlInput.addEventListener('input', () => { if (urlInput.value.trim()) noUrlWarn.classList.remove('show'); });
+
+    exportBtn.addEventListener('click', () => {
+      if (!img) return;
+      const url = urlInput.value.trim();
+      if (!url) { noUrlWarn.classList.add('show'); return; }
+      noUrlWarn.classList.remove('show');
+
+      let finalUrl = url;
+      if (!/^https?:\/\//i.test(finalUrl)) finalUrl = 'https://' + finalUrl;
+
+      const { scaledW, scaledH, left, top } = layout;
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=${W}, initial-scale=1">
+<title>Banner</title>
+<style>
+  html,body{margin:0;padding:0;background:#000;}
+  a.creative{
+    display:block;position:relative;width:${W}px;height:${H}px;
+    background:#000;overflow:hidden;text-decoration:none;
+  }
+  a.creative img{position:absolute;left:${left}px;top:${top}px;width:${scaledW}px;height:${scaledH}px;display:block;}
+  a.creative .xbtn{
+    position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;
+    background:rgba(0,0,0,.55);color:#fff;font-size:14px;line-height:26px;text-align:center;
+    font-family:Arial,sans-serif;z-index:2;
+  }
+</style>
+</head>
+<body>
+<a class="creative" href="${finalUrl}" target="_blank" rel="noopener">
+  <img src="${imgDataUrl}" alt="">
+  <div class="xbtn">&#10005;</div>
+</a>
+</body>
+</html>`;
+
+      const blob = new Blob([html], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${sourceFileName}_320x480.html`;
+      a.click();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      img = null; imgDataUrl = null; layout = null;
+      workspace.classList.remove('active'); fileInput.value = ''; urlInput.value = '';
+      noUrlWarn.classList.remove('show');
+    });
   })();
 </script>
 </body>
