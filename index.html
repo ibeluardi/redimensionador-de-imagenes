@@ -55,7 +55,14 @@
   .tabs {
     display: flex;
     gap: 4px;
-    margin-bottom: 14px;
+    margin-bottom: 0;
+  }
+  .tab-desc {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin: 8px 2px 14px 2px;
+    min-height: 1.5em;
   }
   .tab-btn {
     flex: 1;
@@ -187,11 +194,12 @@
   </header>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="manual">Medida manual</button>
-    <button class="tab-btn" data-tab="preset">Por formato</button>
-    <button class="tab-btn" data-tab="convert">Convertir formato</button>
-    <button class="tab-btn" data-tab="banner">Banner exportable</button>
+    <button class="tab-btn active" data-tab="manual" data-desc="Subís una imagen e indicás el ancho y alto exactos a los que querés llevarla, manteniendo o no la proporción original.">Medida manual</button>
+    <button class="tab-btn" data-tab="preset" data-desc="Elegís un formato ya guardado (push, logo, itt, banner, etc.) y la imagen se redimensiona automáticamente a esa medida. También podés agregar o borrar formatos.">Por formato</button>
+    <button class="tab-btn" data-tab="convert" data-desc="Cambiás el formato de archivo de la imagen (por ejemplo de PNG a JPG o WEBP) sin modificar sus dimensiones.">Convertir formato</button>
+    <button class="tab-btn" data-tab="banner" data-desc="Generás un HTML exportable de 120×240 con la imagen embebida y un link de redirección: la imagen se agranda o achica para entrar completa (sin recortes) y todo el creative es clickeable.">Banner exportable</button>
   </div>
+  <p class="tab-desc" id="tabDesc"></p>
 
   <!-- TAB 1: MANUAL -->
   <div class="panel tab-page active" id="page-manual">
@@ -370,14 +378,17 @@
 
 <script>
   // ---------- tabs ----------
+  const tabDescEl = document.getElementById('tabDesc');
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('page-' + btn.dataset.tab).classList.add('active');
+      tabDescEl.textContent = btn.dataset.desc;
     });
   });
+  tabDescEl.textContent = document.querySelector('.tab-btn.active').dataset.desc;
 
   // ================= MANUAL TAB =================
   (function() {
