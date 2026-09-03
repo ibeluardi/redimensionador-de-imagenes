@@ -349,6 +349,7 @@
       <div class="body-grid">
         <div class="preview-side">
           <canvas class="preview" id="canvasBanner"></canvas>
+          <div class="dims-readout">Tamaño de exportación: <b>120 × 240 px</b></div>
           <div class="dims-readout" id="dimsBanner">—</div>
         </div>
         <div class="controls">
@@ -689,7 +690,7 @@
 
   // ================= BANNER TAB =================
   (function() {
-    const W = 320, H = 480;
+    const W = 120, H = 240;
     const dropzone = document.getElementById('dropzoneBanner');
     const fileInput = document.getElementById('fileInputBanner');
     const workspace = document.getElementById('workspaceBanner');
@@ -730,7 +731,7 @@
     }
 
     function computeLayout() {
-      // "contain": la imagen siempre entra completa dentro de 320x480, sin recortes.
+      // "contain": la imagen siempre entra completa dentro del lienzo, sin recortes.
       // Se agranda o achica según haga falta; el eje sobrante queda con franjas negras.
       const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
       const scaledW = img.naturalWidth * scale;
@@ -769,7 +770,7 @@
       } else if (hBars > 0) {
         dimsEl.innerHTML = `Franjas negras: <b>${hBars}px</b> totales (a los costados)`;
       } else {
-        dimsEl.innerHTML = `La imagen ajusta exacto a 320×480`;
+        dimsEl.innerHTML = `La imagen ajusta exacto a ${W}×${H}`;
       }
     }
 
@@ -784,39 +785,61 @@
       let finalUrl = url;
       if (!/^https?:\/\//i.test(finalUrl)) finalUrl = 'https://' + finalUrl;
 
+      // posiciones en % relativas al lienzo 120x240, para que el contenedor
+      // (bloqueado por aspect-ratio) escale bien sin importar el tamaño real.
       const { scaledW, scaledH, left, top } = layout;
-      const html = `<!DOCTYPE html>
-<html>
+      const leftPct = (left / W) * 100;
+      const topPct = (top / H) * 100;
+      const wPct = (scaledW / W) * 100;
+      const hPct = (scaledH / H) * 100;
+
+      const html = `<!-- HTML Generado por herramienta interna -->
+<!DOCTYPE html>
+<html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=${W}, initial-scale=1">
-<title>Banner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="ad.size" content="width=${W},height=${H}">
+<title>Creative</title>
+<script type="text/javascript">
+  var clickTag = "${finalUrl}";
+</script>
 <style>
-  html,body{margin:0;padding:0;background:#000;}
-  a.creative{
-    display:block;position:relative;width:${W}px;height:${H}px;
-    background:#000;overflow:hidden;text-decoration:none;
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background-color: rgb(0, 0, 0); cursor: pointer; }
+  .stage-wrap {
+    width: 100%; height: 100%; min-height: 100vh;
+    display: flex; justify-content: center; align-items: center;
   }
-  a.creative img{position:absolute;left:${left}px;top:${top}px;width:${scaledW}px;height:${scaledH}px;display:block;}
-  a.creative .xbtn{
-    position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;
-    background:rgba(0,0,0,.55);color:#fff;font-size:14px;line-height:26px;text-align:center;
-    font-family:Arial,sans-serif;z-index:2;
+  .stage {
+    height: 100vh; width: auto; aspect-ratio: ${W} / ${H};
+    position: relative; overflow: hidden; background-color: rgb(0, 0, 0);
+  }
+  .stage img { position: absolute; display: block; }
+  .stage .xbtn {
+    position: absolute; top: 3%; right: 3%; width: 11%; aspect-ratio: 1 / 1;
+    border-radius: 50%; background: rgba(0,0,0,.55); color: #fff;
+    font-family: Arial, sans-serif; font-size: 55%; line-height: 2.1;
+    text-align: center; z-index: 2;
   }
 </style>
 </head>
-<body>
-<a class="creative" href="${finalUrl}" target="_blank" rel="noopener">
-  <img src="${imgDataUrl}" alt="">
-  <div class="xbtn">&#10005;</div>
-</a>
+<body onclick="window.open(window.clickTag, '_blank')">
+  <div class="stage-wrap">
+    <div class="stage">
+      <img src="${imgDataUrl}" alt=""
+        style="left:${leftPct}%; top:${topPct}%; width:${wPct}%; height:${hPct}%;">
+      <div class="xbtn">&#10005;</div>
+    </div>
+  </div>
 </body>
-</html>`;
+</html>
+<!-- HTML Generado por herramienta interna -->`;
 
       const blob = new Blob([html], { type: 'text/html' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `${sourceFileName}_320x480.html`;
+      a.download = `${sourceFileName}_${W}x${H}.html`;
       a.click();
     });
 
