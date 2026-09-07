@@ -125,6 +125,22 @@
   .dims-readout { margin-top: 14px; font-size: 12.5px; color: var(--text-dim); }
   .dims-readout b { color: var(--text); font-weight: 600; }
 
+  /* stage de carrusel: reproduce exactamente lo que se exporta */
+  .carousel-stage {
+    position: relative; width: 168px; aspect-ratio: 120 / 240;
+    overflow: hidden; background: #000; box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+  }
+  .carousel-track {
+    position: absolute; top: 0; left: 0; height: 100%; display: flex;
+    transition: transform 450ms ease;
+  }
+  .carousel-track .slide { flex: 0 0 100%; width: 100%; height: 100%; }
+  .carousel-track .slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .carousel-fixed {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; pointer-events: none; display: none;
+  }
+
   .controls { padding: 22px; }
   .field { margin-bottom: 16px; }
   .field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
@@ -403,7 +419,10 @@
 
     <div class="body-grid">
       <div class="preview-side">
-        <canvas class="preview" id="canvasCarouselPreview"></canvas>
+        <div class="carousel-stage" id="stagePreviewCarousel">
+          <div class="carousel-track" id="trackPreviewCarousel"></div>
+          <img class="carousel-fixed" id="fixedOverlayPreview" alt="">
+        </div>
         <div class="dims-readout">Tamaño de exportación: <b>120 × 240 px</b></div>
         <div class="dims-readout" id="dimsCarousel">—</div>
       </div>
@@ -944,17 +963,20 @@ ${impressionPixel}  <div class="stage-wrap">
     const addSlideBtn = document.getElementById('addSlideBtn');
     const intervalInput = document.getElementById('intervalInputCarousel');
     const warnEl = document.getElementById('warnCarousel');
-    const canvas = document.getElementById('canvasCarouselPreview');
-    const ctx = canvas.getContext('2d');
+    const stageEl = document.getElementById('stagePreviewCarousel');
+    const trackEl = document.getElementById('trackPreviewCarousel');
+    const fixedOverlayEl = document.getElementById('fixedOverlayPreview');
     const dimsEl = document.getElementById('dimsCarousel');
     const exportBtn = document.getElementById('exportCarouselBtn');
     const resetBtn = document.getElementById('resetCarouselBtn');
 
+    const TRANSITION_MS = 450; // duración del deslizamiento
+
     let fixedImg = null; // { dataUrl, imgEl, w, h }
     let slides = [];     // [{ id, dataUrl, imgEl, w, h, name, link }]
     let idCounter = 0;
-    let layout = null;
     let previewTimer = null;
+    let previewIdx = 0;
 
     function showWarn(msg) {
       warnEl.textContent = msg;
@@ -981,17 +1003,6 @@ ${impressionPixel}  <div class="stage-wrap">
       });
     }
 
-    function computeLayout(refW, refH) {
-      const scale = Math.min(W / refW, H / refH);
-      const scaledW = refW * scale, scaledH = refH * scale;
-      return { scaledW, scaledH, left: (W - scaledW) / 2, top: (H - scaledH) / 2 };
-    }
-
-    function refreshLayout() {
-      const ref = fixedImg || slides.find(s => s.imgEl);
-      layout = ref ? computeLayout(ref.w, ref.h) : null;
-    }
-
     // ---------- imagen fija ----------
     fixedInput.addEventListener('change', async e => {
       const file = e.target.files[0];
@@ -999,7 +1010,8 @@ ${impressionPixel}  <div class="stage-wrap">
       try {
         fixedImg = await loadImageFile(file);
         fixedInfo.textContent = file.name + ' — ' + fixedImg.w + '×' + fixedImg.h + 'px';
-        refreshLayout();
+        fixedOverlayEl.src = fixedImg.dataUrl;
+        fixedOverlayEl.style.display = 'block';
         restartPreview();
       } catch (err) {
         fixedInfo.textContent = 'No se pudo leer la imagen.';
@@ -1015,7 +1027,6 @@ ${impressionPixel}  <div class="stage-wrap">
     function removeSlide(id) {
       slides = slides.filter(s => s.id !== id);
       renderSlidesList();
-      refreshLayout();
       restartPreview();
     }
 
@@ -1028,7 +1039,7 @@ ${impressionPixel}  <div class="stage-wrap">
         slidesListEl.appendChild(empty);
         return;
       }
-      slides.forEach((slide, i) => {
+      slides.forEach((slide) => {
         const row = document.createElement('div');
         row.className = 'preset-row';
         row.style.cssText = 'flex-direction:column;align-items:stretch;gap:7px;padding:12px 11px;';
@@ -1047,7 +1058,6 @@ ${impressionPixel}  <div class="stage-wrap">
             const loaded = await loadImageFile(file);
             Object.assign(slide, loaded);
             status.textContent = file.name + ' — ' + slide.w + '×' + slide.h + 'px';
-            refreshLayout();
             restartPreview();
           } catch (err) {
             status.textContent = 'No se pudo leer la imagen.';
@@ -1091,32 +1101,63 @@ ${impressionPixel}  <div class="stage-wrap">
     addSlideBtn.addEventListener('click', addSlide);
     intervalInput.addEventListener('change', restartPreview);
 
-    // ---------- preview ----------
-    function drawFrame(slide) {
-      canvas.width = W; canvas.height = H;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, W, H);
-      if (!layout) { dimsEl.textContent = 'Cargá al menos una imagen.'; return; }
-      if (slide && slide.imgEl) {
-        ctx.drawImage(slide.imgEl, layout.left, layout.top, layout.scaledW, layout.scaledH);
+    // ---------- preview: mismo mecanismo de "track" deslizable que el export ----------
+    function buildTrack(withImg) {
+      trackEl.innerHTML = '';
+      trackEl.style.transition = 'none';
+      trackEl.style.transform = 'translateX(0%)';
+      withImg.forEach(s => {
+        const cell = document.createElement('div');
+        cell.className = 'slide';
+        const img = document.createElement('img');
+        img.src = s.dataUrl;
+        img.alt = '';
+        cell.appendChild(img);
+        trackEl.appendChild(cell);
+      });
+      if (withImg.length > 1) {
+        // duplicado del primero al final, para el loop sin salto
+        const cell = document.createElement('div');
+        cell.className = 'slide';
+        const img = document.createElement('img');
+        img.src = withImg[0].dataUrl;
+        img.alt = '';
+        cell.appendChild(img);
+        trackEl.appendChild(cell);
       }
-      if (fixedImg && fixedImg.imgEl) {
-        ctx.drawImage(fixedImg.imgEl, layout.left, layout.top, layout.scaledW, layout.scaledH);
-      }
-      dimsEl.textContent = slide ? ('Mostrando: ' + (slide.name || 'slide sin nombre')) : 'Sin slides con imagen todavía.';
+      void trackEl.offsetHeight; // forzar reflow
+      trackEl.style.transition = '';
     }
 
     function restartPreview() {
       clearInterval(previewTimer);
       const withImg = slides.filter(s => s.imgEl);
-      if (!withImg.length) { drawFrame(null); return; }
-      let i = 0;
-      drawFrame(withImg[0]);
+      previewIdx = 0;
+      buildTrack(withImg);
+
+      if (!withImg.length) {
+        dimsEl.textContent = 'Cargá al menos una imagen.';
+        return;
+      }
+      dimsEl.textContent = 'Mostrando: ' + (withImg[0].name || 'slide sin nombre');
+
       if (withImg.length > 1) {
         const ms = Math.max(1, parseFloat(intervalInput.value) || 3) * 1000;
+        const n = withImg.length;
         previewTimer = setInterval(() => {
-          i = (i + 1) % withImg.length;
-          drawFrame(withImg[i]);
+          previewIdx++;
+          trackEl.style.transition = `transform ${TRANSITION_MS}ms ease`;
+          trackEl.style.transform = `translateX(-${previewIdx * 100}%)`;
+          const realIdx = previewIdx % n;
+          dimsEl.textContent = 'Mostrando: ' + (withImg[realIdx].name || 'slide sin nombre');
+          if (previewIdx === n) {
+            setTimeout(() => {
+              trackEl.style.transition = 'none';
+              trackEl.style.transform = 'translateX(0%)';
+              previewIdx = 0;
+              void trackEl.offsetHeight;
+            }, TRANSITION_MS + 20);
+          }
         }, ms);
       }
     }
@@ -1128,10 +1169,6 @@ ${impressionPixel}  <div class="stage-wrap">
         showWarn('Agregá al menos un slide con imagen y link antes de exportar.');
         return;
       }
-      if (!layout) {
-        showWarn('No se pudo calcular el tamaño — cargá al menos una imagen.');
-        return;
-      }
       const incomplete = slides.some(s => (s.dataUrl && !s.link.trim()) || (!s.dataUrl && s.link.trim()));
       if (incomplete) {
         showWarn('Hay un slide con imagen pero sin link (o al revés) — se va a exportar sin ese slide. Revisalo si no era la intención.');
@@ -1139,19 +1176,18 @@ ${impressionPixel}  <div class="stage-wrap">
         showWarn('');
       }
 
-      const { left, top, scaledW, scaledH } = layout;
-      const leftPct = (left / W) * 100, topPct = (top / H) * 100;
-      const wPct = (scaledW / W) * 100, hPct = (scaledH / H) * 100;
       const intervalMs = Math.max(1, parseFloat(intervalInput.value) || 3) * 1000;
 
-      const slidesData = validSlides.map(s => ({
-        img: s.dataUrl,
-        link: s.link.trim().replace(/^(?!https?:\/\/)/, 'https://')
-      }));
+      const links = validSlides.map(s => s.link.trim().replace(/^(?!https?:\/\/)/, 'https://'));
+
+      // track: un <div class="slide"> por cada imagen + el primero duplicado al final para el loop
+      const trackCells = validSlides.map(s => `<div class="slide"><img src="${s.dataUrl}" alt=""></div>`).join('');
+      const loopCell = validSlides.length > 1
+        ? `<div class="slide"><img src="${validSlides[0].dataUrl}" alt=""></div>`
+        : '';
 
       const fixedMarkup = fixedImg
-        ? `<img id="fixedOverlay" src="${fixedImg.dataUrl}" alt=""
-        style="left:${leftPct}%; top:${topPct}%; width:${wPct}%; height:${hPct}%;">\n      `
+        ? `<img class="fixed-overlay" src="${fixedImg.dataUrl}" alt="">`
         : '';
 
       const html = `<!-- HTML Generado por herramienta interna -->
@@ -1173,32 +1209,42 @@ ${impressionPixel}  <div class="stage-wrap">
     height: 100vh; width: auto; aspect-ratio: ${W} / ${H};
     position: relative; overflow: hidden; background-color: rgb(0, 0, 0);
   }
-  .stage img { position: absolute; display: block; }
+  .track { position: absolute; top: 0; left: 0; height: 100%; display: flex; transition: transform ${TRANSITION_MS}ms ease; }
+  .track .slide { flex: 0 0 100%; width: 100%; height: 100%; }
+  .track .slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .fixed-overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; z-index: 2; }
 </style>
 </head>
 <body>
   <div class="stage-wrap">
     <div class="stage" id="stage">
-      <img id="slideImg" src="${slidesData[0].img}" alt=""
-        style="left:${leftPct}%; top:${topPct}%; width:${wPct}%; height:${hPct}%;">
-      ${fixedMarkup}</div>
+      <div class="track" id="track">${trackCells}${loopCell}</div>
+      ${fixedMarkup}
+    </div>
   </div>
   <script>
-    var slides = ${JSON.stringify(slidesData)};
+    var links = ${JSON.stringify(links)};
+    var n = links.length;
     var idx = 0;
     var stage = document.getElementById('stage');
-    var slideImg = document.getElementById('slideImg');
-    function showSlide(i) {
-      slideImg.src = slides[i].img;
-      stage.setAttribute('data-link', slides[i].link);
+    var track = document.getElementById('track');
+    function setLink(i) { stage.setAttribute('data-link', links[i]); }
+    setLink(0);
+    function goNext() {
+      idx++;
+      track.style.transition = 'transform ${TRANSITION_MS}ms ease';
+      track.style.transform = 'translateX(-' + (idx * 100) + '%)';
+      setLink(idx % n);
+      if (idx === n) {
+        setTimeout(function () {
+          track.style.transition = 'none';
+          track.style.transform = 'translateX(0%)';
+          idx = 0;
+          void track.offsetHeight;
+        }, ${TRANSITION_MS} + 20);
+      }
     }
-    showSlide(0);
-    if (slides.length > 1) {
-      setInterval(function () {
-        idx = (idx + 1) % slides.length;
-        showSlide(idx);
-      }, ${intervalMs});
-    }
+    if (n > 1) { setInterval(goNext, ${intervalMs}); }
     stage.addEventListener('click', function () {
       var link = stage.getAttribute('data-link');
       if (link) window.open(link, '_blank');
@@ -1216,17 +1262,18 @@ ${impressionPixel}  <div class="stage-wrap">
     });
 
     resetBtn.addEventListener('click', () => {
-      fixedImg = null; slides = []; layout = null;
+      fixedImg = null; slides = [];
       clearInterval(previewTimer);
       fixedInput.value = ''; fixedInfo.textContent = 'Ninguna cargada.';
+      fixedOverlayEl.removeAttribute('src'); fixedOverlayEl.style.display = 'none';
       intervalInput.value = 3;
       showWarn('');
       renderSlidesList();
-      drawFrame(null);
+      restartPreview();
     });
 
     renderSlidesList();
-    drawFrame(null);
+    restartPreview();
   })();
 </script>
 </body>
