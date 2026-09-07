@@ -418,6 +418,24 @@
 </div>
 
 <script>
+  // ---------- utilidad compartida: achicar/comprimir antes de embeber en base64 ----------
+  // evita exports de varios MB cuando se suben imágenes en su resolución original.
+  function downscaleToDataUrl(imageEl, maxDim) {
+    let w = imageEl.naturalWidth, h = imageEl.naturalHeight;
+    if (Math.max(w, h) > maxDim) {
+      const scale = maxDim / Math.max(w, h);
+      w = Math.round(w * scale);
+      h = Math.round(h * scale);
+    }
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const cctx = c.getContext('2d');
+    cctx.drawImage(imageEl, 0, 0, w, h);
+    let dataUrl = c.toDataURL('image/webp', 0.85);
+    if (!dataUrl.startsWith('data:image/webp')) dataUrl = c.toDataURL('image/png'); // fallback si el navegador no soporta webp
+    return { dataUrl, w, h };
+  }
+
   // ---------- tabs ----------
   const tabDescEl = document.getElementById('tabDesc');
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -771,12 +789,17 @@
       sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'banner';
       const reader = new FileReader();
       reader.onload = e => {
-        imgDataUrl = e.target.result;
         const image = new Image();
         image.onload = () => {
-          img = image;
-          workspace.classList.add('active');
-          render();
+          const down = downscaleToDataUrl(image, 800);
+          imgDataUrl = down.dataUrl;
+          const finalImg = new Image();
+          finalImg.onload = () => {
+            img = finalImg;
+            workspace.classList.add('active');
+            render();
+          };
+          finalImg.src = down.dataUrl;
         };
         image.src = e.target.result;
       };
@@ -943,7 +966,13 @@ ${impressionPixel}  <div class="stage-wrap">
         const reader = new FileReader();
         reader.onload = e => {
           const im = new Image();
-          im.onload = () => resolve({ dataUrl: e.target.result, imgEl: im, w: im.naturalWidth, h: im.naturalHeight });
+          im.onload = () => {
+            const down = downscaleToDataUrl(im, 800);
+            const finalImg = new Image();
+            finalImg.onload = () => resolve({ dataUrl: down.dataUrl, imgEl: finalImg, w: down.w, h: down.h });
+            finalImg.onerror = reject;
+            finalImg.src = down.dataUrl;
+          };
           im.onerror = reject;
           im.src = e.target.result;
         };
