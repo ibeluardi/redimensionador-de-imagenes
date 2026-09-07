@@ -198,6 +198,7 @@
     <button class="tab-btn" data-tab="preset" data-desc="Elegís un formato ya guardado (push, logo, itt, banner, etc.) y la imagen se redimensiona automáticamente a esa medida. También podés agregar o borrar formatos.">Por formato</button>
     <button class="tab-btn" data-tab="convert" data-desc="Cambiás el formato de archivo de la imagen (por ejemplo de PNG a JPG o WEBP) sin modificar sus dimensiones.">Convertir formato</button>
     <button class="tab-btn" data-tab="banner" data-desc="Generás un HTML exportable de 120×240 con la imagen embebida, un link de redirección y, opcionalmente, un pixel de tracking de impresiones: la imagen se agranda o achica para entrar completa (sin recortes) y todo el creative es clickeable.">Banner exportable</button>
+    <button class="tab-btn" data-tab="carousel" data-desc="Generás un HTML exportable de 120×240 con una imagen fija (overlay) y varios slides de fondo que rotan solos cada X segundos, cada uno con su propio link: al tocar en cualquier momento, redirige al link del slide que esté visible.">Carrusel exportable</button>
   </div>
   <p class="tab-desc" id="tabDesc"></p>
 
@@ -373,6 +374,42 @@
           <button class="btn btn-primary" id="exportBtnBanner">Descargar HTML</button>
           <button class="btn btn-ghost" id="resetBtnBanner">Elegir otra imagen</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 5: CARRUSEL -->
+  <div class="panel tab-page" id="page-carousel">
+    <div class="controls" style="padding:22px 22px 4px 22px; border-bottom:1px solid var(--line);">
+      <div class="field">
+        <label>Imagen fija (overlay, siempre visible arriba del carrusel — opcional)</label>
+        <input type="file" id="fixedInputCarousel" accept="image/*">
+        <div id="fixedInfoCarousel" style="font-size:12px;color:var(--text-dim);margin-top:6px;">Ninguna cargada.</div>
+      </div>
+
+      <div class="field">
+        <label>Slides del carrusel (imagen + link, uno por slide)</label>
+        <div class="preset-list" id="slidesListCarousel"></div>
+        <button class="btn btn-ghost btn-small" id="addSlideBtn" type="button" style="margin-top:10px;">+ Agregar slide</button>
+      </div>
+
+      <div class="field" style="max-width:160px;">
+        <label>Autoplay (segundos)</label>
+        <input type="number" id="intervalInputCarousel" value="3" min="1" step="0.5">
+      </div>
+
+      <div class="warn" id="warnCarousel"></div>
+    </div>
+
+    <div class="body-grid">
+      <div class="preview-side">
+        <canvas class="preview" id="canvasCarouselPreview"></canvas>
+        <div class="dims-readout">Tamaño de exportación: <b>120 × 240 px</b></div>
+        <div class="dims-readout" id="dimsCarousel">—</div>
+      </div>
+      <div class="controls">
+        <button class="btn btn-primary" id="exportCarouselBtn">Descargar HTML</button>
+        <button class="btn btn-ghost" id="resetCarouselBtn">Reiniciar todo</button>
       </div>
     </div>
   </div>
@@ -873,6 +910,294 @@ ${impressionPixel}  <div class="stage-wrap">
       trackingInput.value = '';
       noUrlWarn.classList.remove('show');
     });
+  })();
+
+  // ================= CARRUSEL TAB =================
+  (function() {
+    const W = 120, H = 240;
+    const fixedInput = document.getElementById('fixedInputCarousel');
+    const fixedInfo = document.getElementById('fixedInfoCarousel');
+    const slidesListEl = document.getElementById('slidesListCarousel');
+    const addSlideBtn = document.getElementById('addSlideBtn');
+    const intervalInput = document.getElementById('intervalInputCarousel');
+    const warnEl = document.getElementById('warnCarousel');
+    const canvas = document.getElementById('canvasCarouselPreview');
+    const ctx = canvas.getContext('2d');
+    const dimsEl = document.getElementById('dimsCarousel');
+    const exportBtn = document.getElementById('exportCarouselBtn');
+    const resetBtn = document.getElementById('resetCarouselBtn');
+
+    let fixedImg = null; // { dataUrl, imgEl, w, h }
+    let slides = [];     // [{ id, dataUrl, imgEl, w, h, name, link }]
+    let idCounter = 0;
+    let layout = null;
+    let previewTimer = null;
+
+    function showWarn(msg) {
+      warnEl.textContent = msg;
+      warnEl.classList.toggle('show', !!msg);
+    }
+
+    function loadImageFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const im = new Image();
+          im.onload = () => resolve({ dataUrl: e.target.result, imgEl: im, w: im.naturalWidth, h: im.naturalHeight });
+          im.onerror = reject;
+          im.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function computeLayout(refW, refH) {
+      const scale = Math.min(W / refW, H / refH);
+      const scaledW = refW * scale, scaledH = refH * scale;
+      return { scaledW, scaledH, left: (W - scaledW) / 2, top: (H - scaledH) / 2 };
+    }
+
+    function refreshLayout() {
+      const ref = fixedImg || slides.find(s => s.imgEl);
+      layout = ref ? computeLayout(ref.w, ref.h) : null;
+    }
+
+    // ---------- imagen fija ----------
+    fixedInput.addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        fixedImg = await loadImageFile(file);
+        fixedInfo.textContent = file.name + ' — ' + fixedImg.w + '×' + fixedImg.h + 'px';
+        refreshLayout();
+        restartPreview();
+      } catch (err) {
+        fixedInfo.textContent = 'No se pudo leer la imagen.';
+      }
+    });
+
+    // ---------- slides ----------
+    function addSlide() {
+      slides.push({ id: idCounter++, dataUrl: null, imgEl: null, w: 0, h: 0, name: '', link: '' });
+      renderSlidesList();
+    }
+
+    function removeSlide(id) {
+      slides = slides.filter(s => s.id !== id);
+      renderSlidesList();
+      refreshLayout();
+      restartPreview();
+    }
+
+    function renderSlidesList() {
+      slidesListEl.innerHTML = '';
+      if (!slides.length) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:12px;font-size:12.5px;color:var(--text-dim);background:var(--surface-2);';
+        empty.textContent = 'Todavía no agregaste ningún slide.';
+        slidesListEl.appendChild(empty);
+        return;
+      }
+      slides.forEach((slide, i) => {
+        const row = document.createElement('div');
+        row.className = 'preset-row';
+        row.style.cssText = 'flex-direction:column;align-items:stretch;gap:7px;padding:12px 11px;';
+
+        const topRow = document.createElement('div');
+        topRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.flex = '1';
+        fileInput.addEventListener('change', async ev => {
+          const file = ev.target.files[0];
+          if (!file) return;
+          try {
+            const loaded = await loadImageFile(file);
+            Object.assign(slide, loaded);
+            status.textContent = file.name + ' — ' + slide.w + '×' + slide.h + 'px';
+            refreshLayout();
+            restartPreview();
+          } catch (err) {
+            status.textContent = 'No se pudo leer la imagen.';
+          }
+        });
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'del';
+        delBtn.type = 'button';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Quitar slide';
+        delBtn.addEventListener('click', () => removeSlide(slide.id));
+
+        topRow.appendChild(fileInput);
+        topRow.appendChild(delBtn);
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.placeholder = 'Nombre (opcional, solo referencia — ej: Facu)';
+        nameInput.value = slide.name;
+        nameInput.addEventListener('input', () => { slide.name = nameInput.value; });
+
+        const linkInput = document.createElement('input');
+        linkInput.type = 'text';
+        linkInput.placeholder = 'https://... (link de este slide)';
+        linkInput.value = slide.link;
+        linkInput.addEventListener('input', () => { slide.link = linkInput.value; });
+
+        const status = document.createElement('div');
+        status.style.cssText = 'font-size:11.5px;color:var(--text-dim);';
+        status.textContent = slide.dataUrl ? (slide.w + '×' + slide.h + 'px cargada') : 'Sin imagen';
+
+        row.appendChild(topRow);
+        row.appendChild(nameInput);
+        row.appendChild(linkInput);
+        row.appendChild(status);
+        slidesListEl.appendChild(row);
+      });
+    }
+
+    addSlideBtn.addEventListener('click', addSlide);
+    intervalInput.addEventListener('change', restartPreview);
+
+    // ---------- preview ----------
+    function drawFrame(slide) {
+      canvas.width = W; canvas.height = H;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      if (!layout) { dimsEl.textContent = 'Cargá al menos una imagen.'; return; }
+      if (slide && slide.imgEl) {
+        ctx.drawImage(slide.imgEl, layout.left, layout.top, layout.scaledW, layout.scaledH);
+      }
+      if (fixedImg && fixedImg.imgEl) {
+        ctx.drawImage(fixedImg.imgEl, layout.left, layout.top, layout.scaledW, layout.scaledH);
+      }
+      dimsEl.textContent = slide ? ('Mostrando: ' + (slide.name || 'slide sin nombre')) : 'Sin slides con imagen todavía.';
+    }
+
+    function restartPreview() {
+      clearInterval(previewTimer);
+      const withImg = slides.filter(s => s.imgEl);
+      if (!withImg.length) { drawFrame(null); return; }
+      let i = 0;
+      drawFrame(withImg[0]);
+      if (withImg.length > 1) {
+        const ms = Math.max(1, parseFloat(intervalInput.value) || 3) * 1000;
+        previewTimer = setInterval(() => {
+          i = (i + 1) % withImg.length;
+          drawFrame(withImg[i]);
+        }, ms);
+      }
+    }
+
+    // ---------- export ----------
+    exportBtn.addEventListener('click', () => {
+      const validSlides = slides.filter(s => s.dataUrl && s.link.trim());
+      if (!validSlides.length) {
+        showWarn('Agregá al menos un slide con imagen y link antes de exportar.');
+        return;
+      }
+      if (!layout) {
+        showWarn('No se pudo calcular el tamaño — cargá al menos una imagen.');
+        return;
+      }
+      const incomplete = slides.some(s => (s.dataUrl && !s.link.trim()) || (!s.dataUrl && s.link.trim()));
+      if (incomplete) {
+        showWarn('Hay un slide con imagen pero sin link (o al revés) — se va a exportar sin ese slide. Revisalo si no era la intención.');
+      } else {
+        showWarn('');
+      }
+
+      const { left, top, scaledW, scaledH } = layout;
+      const leftPct = (left / W) * 100, topPct = (top / H) * 100;
+      const wPct = (scaledW / W) * 100, hPct = (scaledH / H) * 100;
+      const intervalMs = Math.max(1, parseFloat(intervalInput.value) || 3) * 1000;
+
+      const slidesData = validSlides.map(s => ({
+        img: s.dataUrl,
+        link: s.link.trim().replace(/^(?!https?:\/\/)/, 'https://')
+      }));
+
+      const fixedMarkup = fixedImg
+        ? `<img id="fixedOverlay" src="${fixedImg.dataUrl}" alt=""
+        style="left:${leftPct}%; top:${topPct}%; width:${wPct}%; height:${hPct}%;">\n      `
+        : '';
+
+      const html = `<!-- HTML Generado por herramienta interna -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="ad.size" content="width=${W},height=${H}">
+<title>Creative</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background-color: rgb(0, 0, 0); cursor: pointer; }
+  .stage-wrap {
+    width: 100%; height: 100%; min-height: 100vh;
+    display: flex; justify-content: center; align-items: center;
+  }
+  .stage {
+    height: 100vh; width: auto; aspect-ratio: ${W} / ${H};
+    position: relative; overflow: hidden; background-color: rgb(0, 0, 0);
+  }
+  .stage img { position: absolute; display: block; }
+</style>
+</head>
+<body>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <img id="slideImg" src="${slidesData[0].img}" alt=""
+        style="left:${leftPct}%; top:${topPct}%; width:${wPct}%; height:${hPct}%;">
+      ${fixedMarkup}</div>
+  </div>
+  <script>
+    var slides = ${JSON.stringify(slidesData)};
+    var idx = 0;
+    var stage = document.getElementById('stage');
+    var slideImg = document.getElementById('slideImg');
+    function showSlide(i) {
+      slideImg.src = slides[i].img;
+      stage.setAttribute('data-link', slides[i].link);
+    }
+    showSlide(0);
+    if (slides.length > 1) {
+      setInterval(function () {
+        idx = (idx + 1) % slides.length;
+        showSlide(idx);
+      }, ${intervalMs});
+    }
+    stage.addEventListener('click', function () {
+      var link = stage.getAttribute('data-link');
+      if (link) window.open(link, '_blank');
+    });
+  <\/script>
+</body>
+</html>
+<!-- HTML Generado por herramienta interna -->`;
+
+      const blob = new Blob([html], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `carrusel_${W}x${H}.html`;
+      a.click();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      fixedImg = null; slides = []; layout = null;
+      clearInterval(previewTimer);
+      fixedInput.value = ''; fixedInfo.textContent = 'Ninguna cargada.';
+      intervalInput.value = 3;
+      showWarn('');
+      renderSlidesList();
+      drawFrame(null);
+    });
+
+    renderSlidesList();
+    drawFrame(null);
   })();
 </script>
 </body>
