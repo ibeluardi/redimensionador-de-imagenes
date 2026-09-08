@@ -176,6 +176,7 @@
 
   .warn { margin-top: 10px; font-size: 12px; color: var(--danger); line-height: 1.4; display: none; }
   .warn.show { display: block; }
+  .warn.info { color: var(--accent); }
 
   /* preset management */
   .preset-list { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 6px; }
@@ -260,7 +261,14 @@
               <span id="qualityValManual">90%</span>
             </div>
           </div>
-          <div class="warn" id="ratioWarnManual">La medida elegida no respeta la proporción original: la imagen se verá deformada.</div>
+          <div class="field">
+            <label>Cuando la proporción no coincide</label>
+            <select id="fitModeManual">
+              <option value="pad">Rellenar bordes con color de fondo</option>
+              <option value="stretch">Estirar la imagen</option>
+            </select>
+          </div>
+          <div class="warn info" id="ratioWarnManual">Esta medida no respeta la proporción original: se agregaron márgenes con el color de fondo detectado para no deformar la imagen.</div>
           <button class="btn btn-primary" id="downloadBtnManual">Descargar imagen</button>
           <button class="btn btn-ghost" id="resetBtnManual">Elegir otra imagen</button>
         </div>
@@ -303,7 +311,14 @@
               <span id="qualityValPreset">90%</span>
             </div>
           </div>
-          <div class="warn" id="ratioWarnPreset">Esta medida no respeta la proporción original: la imagen se verá deformada.</div>
+          <div class="field">
+            <label>Cuando la proporción no coincide</label>
+            <select id="fitModePreset">
+              <option value="pad">Rellenar bordes con color de fondo</option>
+              <option value="stretch">Estirar la imagen</option>
+            </select>
+          </div>
+          <div class="warn info" id="ratioWarnPreset">Este formato no respeta la proporción original: se agregaron márgenes con el color de fondo detectado para no deformar la imagen.</div>
           <button class="btn btn-primary" id="downloadBtnPreset">Descargar imagen</button>
           <button class="btn btn-ghost" id="resetBtnPreset">Elegir otra imagen</button>
 
@@ -468,6 +483,50 @@
   });
   tabDescEl.textContent = document.querySelector('.tab-btn.active').dataset.desc;
 
+  // ================= HELPERS: fondo + contain =================
+  function detectBackgroundColor(image) {
+    const off = document.createElement('canvas');
+    off.width = image.naturalWidth;
+    off.height = image.naturalHeight;
+    const octx = off.getContext('2d');
+    octx.drawImage(image, 0, 0);
+    const w = off.width, h = off.height;
+    const s = Math.max(2, Math.floor(Math.min(w, h) * 0.03));
+    const corners = [
+      octx.getImageData(0, 0, s, s),
+      octx.getImageData(w - s, 0, s, s),
+      octx.getImageData(0, h - s, s, s),
+      octx.getImageData(w - s, h - s, s, s)
+    ];
+    function avg(imgData) {
+      let r = 0, g = 0, b = 0, a = 0, n = 0;
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i+1]; b += d[i+2]; a += d[i+3]; n++; }
+      return [r / n, g / n, b / n, a / n];
+    }
+    const avgs = corners.map(avg);
+    let r = 0, g = 0, b = 0, a = 0;
+    avgs.forEach(c => { r += c[0]; g += c[1]; b += c[2]; a += c[3]; });
+    r /= 4; g /= 4; b /= 4; a /= 4;
+    return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${(a / 255).toFixed(3)})`;
+  }
+
+  function drawFitted(ctx, img, canvasW, canvasH, bgColor, forceStretch) {
+    ctx.clearRect(0, 0, canvasW, canvasH);
+    if (forceStretch) {
+      ctx.drawImage(img, 0, 0, canvasW, canvasH);
+      return;
+    }
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+    const scale = Math.min(canvasW / img.naturalWidth, canvasH / img.naturalHeight);
+    const drawW = img.naturalWidth * scale;
+    const drawH = img.naturalHeight * scale;
+    const dx = (canvasW - drawW) / 2;
+    const dy = (canvasH - drawH) / 2;
+    ctx.drawImage(img, dx, dy, drawW, drawH);
+  }
+
   // ================= MANUAL TAB =================
   (function() {
     const dropzone = document.getElementById('dropzoneManual');
@@ -487,8 +546,9 @@
     const downloadBtn = document.getElementById('downloadBtnManual');
     const resetBtn = document.getElementById('resetBtnManual');
     const ratioWarn = document.getElementById('ratioWarnManual');
+    const fitModeSelect = document.getElementById('fitModeManual');
 
-    let img = null, origW = 0, origH = 0, aspectLocked = true, sourceFileName = 'imagen';
+    let img = null, origW = 0, origH = 0, aspectLocked = true, sourceFileName = 'imagen', bgColor = 'rgba(255,255,255,1)';
 
     dropzone.addEventListener('click', () => fileInput.click());
     dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
@@ -507,6 +567,7 @@
         const image = new Image();
         image.onload = () => {
           img = image; origW = image.naturalWidth; origH = image.naturalHeight;
+          bgColor = detectBackgroundColor(image);
           widthInput.value = origW; heightInput.value = origH;
           origDimsEl.textContent = origW + ' × ' + origH + ' px';
           workspace.classList.add('active');
@@ -530,6 +591,7 @@
       qualityField.style.display = formatSelect.value === 'image/png' ? 'none' : 'block';
       render();
     });
+    fitModeSelect.addEventListener('change', render);
     qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; render(); });
 
     function render() {
@@ -537,10 +599,11 @@
       const w = Math.max(1, parseInt(widthInput.value) || 1);
       const h = Math.max(1, parseInt(heightInput.value) || 1);
       canvas.width = w; canvas.height = h;
-      ctx.clearRect(0, 0, w, h);
-      ctx.drawImage(img, 0, 0, w, h);
+      const needsPad = Math.abs((origW / origH) - (w / h)) > 0.01;
+      const stretch = fitModeSelect.value === 'stretch';
+      drawFitted(ctx, img, w, h, bgColor, stretch);
       outDimsEl.textContent = w + ' × ' + h + ' px';
-      ratioWarn.classList.toggle('show', Math.abs((origW / origH) - (w / h)) > 0.01);
+      ratioWarn.classList.toggle('show', needsPad && !stretch);
     }
 
     downloadBtn.addEventListener('click', () => {
@@ -575,13 +638,14 @@
     const downloadBtn = document.getElementById('downloadBtnPreset');
     const resetBtn = document.getElementById('resetBtnPreset');
     const ratioWarn = document.getElementById('ratioWarnPreset');
+    const fitModeSelect = document.getElementById('fitModePreset');
     const presetListEl = document.getElementById('presetList');
     const newPresetName = document.getElementById('newPresetName');
     const newPresetW = document.getElementById('newPresetW');
     const newPresetH = document.getElementById('newPresetH');
     const addPresetBtn = document.getElementById('addPresetBtn');
 
-    let img = null, origW = 0, origH = 0, sourceFileName = 'imagen';
+    let img = null, origW = 0, origH = 0, sourceFileName = 'imagen', bgColor = 'rgba(255,255,255,1)';
     let presets = [
       { name: 'push', w: 452, h: 226 },
       { name: 'logo', w: 48, h: 48 },
@@ -648,6 +712,7 @@
         const image = new Image();
         image.onload = () => {
           img = image; origW = image.naturalWidth; origH = image.naturalHeight;
+          bgColor = detectBackgroundColor(image);
           origDimsEl.textContent = origW + ' × ' + origH + ' px';
           workspace.classList.add('active');
           if (!presets.length) return;
@@ -660,6 +725,7 @@
     }
 
     presetSelect.addEventListener('change', applyPreset);
+    fitModeSelect.addEventListener('change', applyPreset);
     formatSelect.addEventListener('change', () => {
       qualityField.style.display = formatSelect.value === 'image/png' ? 'none' : 'block';
       applyPreset();
@@ -670,10 +736,11 @@
       if (!img || !presets.length) return;
       const p = presets[presetSelect.value] || presets[0];
       canvas.width = p.w; canvas.height = p.h;
-      ctx.clearRect(0, 0, p.w, p.h);
-      ctx.drawImage(img, 0, 0, p.w, p.h);
+      const needsPad = Math.abs((origW / origH) - (p.w / p.h)) > 0.01;
+      const stretch = fitModeSelect.value === 'stretch';
+      drawFitted(ctx, img, p.w, p.h, bgColor, stretch);
       outDimsEl.textContent = p.w + ' × ' + p.h + ' px';
-      ratioWarn.classList.toggle('show', Math.abs((origW / origH) - (p.w / p.h)) > 0.01);
+      ratioWarn.classList.toggle('show', needsPad && !stretch);
     }
 
     downloadBtn.addEventListener('click', () => {
