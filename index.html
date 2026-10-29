@@ -122,24 +122,33 @@
     background-color: var(--surface);
   }
   canvas.preview { max-width: 100%; max-height: 340px; box-shadow: 0 0 0 1px rgba(0,0,0,0.4); }
-  .dims-readout { margin-top: 14px; font-size: 12.5px; color: var(--text-dim); }
+  .dims-readout { margin-top: 14px; font-size: 12.5px; color: var(--text-dim); text-align: center; }
   .dims-readout b { color: var(--text); font-weight: 600; }
 
-  /* stage de carrusel: reproduce exactamente lo que se exporta */
-  .carousel-stage {
-    position: relative; width: 168px; aspect-ratio: 120 / 240;
-    overflow: hidden; background: #000; box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+  /* varias imágenes: miniaturas */
+  .sel-info { margin-top: 10px; font-size: 12px; color: var(--text-dim); text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sel-info b { color: var(--text); font-weight: 600; }
+  .thumbs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 12px; max-width: 100%; }
+  .thumb {
+    position: relative; width: 52px; height: 52px; padding: 0; cursor: pointer;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--surface-2); overflow: hidden;
   }
-  .carousel-track {
-    position: absolute; top: 0; left: 0; height: 100%; display: flex;
-    transition: transform 450ms ease;
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .thumb .x {
+    position: absolute; top: 0; right: 0; width: 17px; height: 17px;
+    background: rgba(0,0,0,0.7); color: #fff; border: none; font-size: 11px; line-height: 17px;
+    cursor: pointer; display: none; padding: 0;
   }
-  .carousel-track .slide { flex: 0 0 100%; width: 100%; height: 100%; }
-  .carousel-track .slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .carousel-fixed {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    object-fit: contain; pointer-events: none; display: none;
+  .thumb .x:hover { background: var(--danger); }
+  .thumb:hover .x { display: block; }
+  @media (hover: none) { .thumb .x { display: block; } }
+  .add-more {
+    margin-top: 14px; background: transparent; border: 1px dashed var(--line); color: var(--text-dim);
+    border-radius: var(--radius); padding: 7px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer;
   }
+  .add-more:hover { color: var(--text); border-color: var(--text-dim); }
 
   .controls { padding: 22px; }
   .field { margin-bottom: 16px; }
@@ -168,10 +177,11 @@
   .quality-row span { font-size: 12.5px; color: var(--text-dim); width: 34px; text-align: right; }
 
   .btn { width: 100%; padding: 10px 12px; border-radius: var(--radius); border: 1px solid transparent; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: 0.6; cursor: progress; }
   .btn-primary { background: var(--accent); color: #1A1300; margin-top: 4px; }
-  .btn-primary:hover { background: #f0ae4c; }
+  .btn-primary:hover:not(:disabled) { background: #f0ae4c; }
   .btn-ghost { background: transparent; color: var(--text-dim); border-color: var(--line); margin-top: 8px; }
-  .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+  .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--text-dim); }
   .btn-small { width: auto; padding: 7px 10px; font-size: 12.5px; }
 
   .warn { margin-top: 10px; font-size: 12px; color: var(--danger); line-height: 1.4; display: none; }
@@ -206,16 +216,14 @@
 <div class="wrap">
   <header>
     <div class="kicker">HERRAMIENTA · REDIMENSIONAR IMÁGENES</div>
-    <h1>Ajustá una imagen a la medida exacta</h1>
-    <p>Elegí ancho y alto manualmente, o subí la imagen e indicá el formato (por ejemplo "push") para que la redimensione automáticamente a esa medida. Todo se procesa en el navegador, sin subir nada a un servidor.</p>
+    <h1>Ajustá tus imágenes a la medida exacta</h1>
+    <p>Subí una o varias imágenes y elegí el ancho y alto, o indicá el formato (por ejemplo "push") para que se redimensionen automáticamente a esa medida. Con varias imágenes, se descargan todas juntas en un ZIP. Todo se procesa en el navegador, sin subir nada a un servidor.</p>
   </header>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="manual" data-desc="Subís una imagen e indicás el ancho y alto exactos a los que querés llevarla, manteniendo o no la proporción original.">Medida manual</button>
-    <button class="tab-btn" data-tab="preset" data-desc="Elegís un formato ya guardado (push, logo, itt, banner, etc.) y la imagen se redimensiona automáticamente a esa medida. También podés agregar o borrar formatos.">Por formato</button>
-    <button class="tab-btn" data-tab="convert" data-desc="Cambiás el formato de archivo de la imagen (por ejemplo de PNG a JPG o WEBP) sin modificar sus dimensiones.">Convertir formato</button>
-    <button class="tab-btn" data-tab="banner" data-desc="Generás un HTML exportable de 120×240 con la imagen embebida, un link de redirección y, opcionalmente, un pixel de tracking de impresiones: la imagen se agranda o achica para entrar completa (sin recortes) y todo el creative es clickeable.">Banner exportable</button>
-    <button class="tab-btn" data-tab="carousel" data-desc="Generás un HTML exportable de 120×240 con una imagen fija (overlay) y varios slides de fondo que rotan solos cada X segundos, cada uno con su propio link: al tocar en cualquier momento, redirige al link del slide que esté visible.">Carrusel exportable</button>
+    <button class="tab-btn active" data-tab="manual" data-desc="Subís una o varias imágenes e indicás el ancho y alto exactos a los que querés llevarlas. Si la proporción no coincide, se rellenan los bordes con el color de fondo de cada imagen (o podés estirarla). Con varias imágenes, se descargan todas juntas en un ZIP.">Medida manual</button>
+    <button class="tab-btn" data-tab="preset" data-desc="Elegís un formato ya guardado (push, logo, itt, banner, etc.) y una o varias imágenes se redimensionan automáticamente a esa medida. También podés agregar o borrar formatos. Con varias imágenes, se descargan todas juntas en un ZIP.">Por formato</button>
+    <button class="tab-btn" data-tab="convert" data-desc="Cambiás el formato de archivo de una o varias imágenes (por ejemplo de PNG a JPG o WEBP) sin modificar sus dimensiones. Con varias imágenes, se descargan todas juntas en un ZIP.">Convertir formato</button>
   </div>
   <p class="tab-desc" id="tabDesc"></p>
 
@@ -223,9 +231,9 @@
   <div class="panel tab-page active" id="page-manual">
     <div class="dropzone" id="dropzoneManual">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5M7 9l5-5 5 5M12 4v13"/></svg>
-      <div class="title">Arrastrá una imagen acá o hacé clic para elegirla</div>
+      <div class="title">Arrastrá una o varias imágenes acá o hacé clic para elegirlas</div>
       <div class="sub">PNG, JPG o WEBP</div>
-      <input type="file" id="fileInputManual" accept="image/*">
+      <input type="file" id="fileInputManual" accept="image/*" multiple>
     </div>
 
     <div class="workspace" id="workspaceManual">
@@ -233,6 +241,9 @@
         <div class="preview-side">
           <canvas class="preview" id="canvasManual"></canvas>
           <div class="dims-readout">Original: <b id="origDimsManual">—</b> &nbsp;→&nbsp; Salida: <b id="outDimsManual">—</b></div>
+          <div class="sel-info" id="selInfoManual"></div>
+          <div class="thumbs" id="thumbsManual"></div>
+          <button class="add-more" id="addMoreManual" type="button">+ Agregar más imágenes</button>
         </div>
         <div class="controls">
           <div class="field">
@@ -241,7 +252,7 @@
               <input type="number" id="widthInput" min="1" placeholder="Ancho">
               <span class="times">×</span>
               <input type="number" id="heightInput" min="1" placeholder="Alto">
-              <button class="lock-btn on" id="lockBtn" title="Mantener proporción">
+              <button class="lock-btn on" id="lockBtn" type="button" title="Mantener proporción (según la primera imagen)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
               </button>
             </div>
@@ -268,9 +279,10 @@
               <option value="stretch">Estirar la imagen</option>
             </select>
           </div>
-          <div class="warn info" id="ratioWarnManual">Esta medida no respeta la proporción original: se agregaron márgenes con el color de fondo detectado para no deformar la imagen.</div>
-          <button class="btn btn-primary" id="downloadBtnManual">Descargar imagen</button>
-          <button class="btn btn-ghost" id="resetBtnManual">Elegir otra imagen</button>
+          <div class="warn info" id="ratioWarnManual">Esta medida no respeta la proporción de la imagen: se agregaron márgenes con el color de fondo detectado para no deformarla.</div>
+          <button class="btn btn-primary" id="downloadBtnManual" type="button">Descargar imagen</button>
+          <button class="btn btn-ghost" id="downloadOneBtnManual" type="button" style="display:none;">Descargar solo la seleccionada</button>
+          <button class="btn btn-ghost" id="resetBtnManual" type="button">Elegir otras imágenes</button>
         </div>
       </div>
     </div>
@@ -280,9 +292,9 @@
   <div class="panel tab-page" id="page-preset">
     <div class="dropzone" id="dropzonePreset">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5M7 9l5-5 5 5M12 4v13"/></svg>
-      <div class="title">Arrastrá una imagen acá o hacé clic para elegirla</div>
+      <div class="title">Arrastrá una o varias imágenes acá o hacé clic para elegirlas</div>
       <div class="sub">PNG, JPG o WEBP</div>
-      <input type="file" id="fileInputPreset" accept="image/*">
+      <input type="file" id="fileInputPreset" accept="image/*" multiple>
     </div>
 
     <div class="workspace" id="workspacePreset">
@@ -290,6 +302,9 @@
         <div class="preview-side">
           <canvas class="preview" id="canvasPreset"></canvas>
           <div class="dims-readout">Original: <b id="origDimsPreset">—</b> &nbsp;→&nbsp; Salida: <b id="outDimsPreset">—</b></div>
+          <div class="sel-info" id="selInfoPreset"></div>
+          <div class="thumbs" id="thumbsPreset"></div>
+          <button class="add-more" id="addMorePreset" type="button">+ Agregar más imágenes</button>
         </div>
         <div class="controls">
           <div class="field">
@@ -318,9 +333,10 @@
               <option value="stretch">Estirar la imagen</option>
             </select>
           </div>
-          <div class="warn info" id="ratioWarnPreset">Este formato no respeta la proporción original: se agregaron márgenes con el color de fondo detectado para no deformar la imagen.</div>
-          <button class="btn btn-primary" id="downloadBtnPreset">Descargar imagen</button>
-          <button class="btn btn-ghost" id="resetBtnPreset">Elegir otra imagen</button>
+          <div class="warn info" id="ratioWarnPreset">Este formato no respeta la proporción de la imagen: se agregaron márgenes con el color de fondo detectado para no deformarla.</div>
+          <button class="btn btn-primary" id="downloadBtnPreset" type="button">Descargar imagen</button>
+          <button class="btn btn-ghost" id="downloadOnePreset" type="button" style="display:none;">Descargar solo la seleccionada</button>
+          <button class="btn btn-ghost" id="resetBtnPreset" type="button">Elegir otras imágenes</button>
 
           <div class="field" style="margin-top:22px; border-top:1px solid var(--line); padding-top:16px;">
             <label>Gestionar formatos</label>
@@ -330,7 +346,7 @@
               <input type="number" id="newPresetW" placeholder="Ancho">
               <input type="number" id="newPresetH" placeholder="Alto">
             </div>
-            <button class="btn btn-ghost btn-small" id="addPresetBtn" style="width:100%; margin-top:8px;">+ Agregar formato</button>
+            <button class="btn btn-ghost btn-small" id="addPresetBtn" type="button" style="width:100%; margin-top:8px;">+ Agregar formato</button>
           </div>
         </div>
       </div>
@@ -341,9 +357,9 @@
   <div class="panel tab-page" id="page-convert">
     <div class="dropzone" id="dropzoneConvert">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5M7 9l5-5 5 5M12 4v13"/></svg>
-      <div class="title">Arrastrá una imagen acá o hacé clic para elegirla</div>
+      <div class="title">Arrastrá una o varias imágenes acá o hacé clic para elegirlas</div>
       <div class="sub">PNG, JPG o WEBP</div>
-      <input type="file" id="fileInputConvert" accept="image/*">
+      <input type="file" id="fileInputConvert" accept="image/*" multiple>
     </div>
 
     <div class="workspace" id="workspaceConvert">
@@ -351,6 +367,9 @@
         <div class="preview-side">
           <canvas class="preview" id="canvasConvert"></canvas>
           <div class="dims-readout">Formato original: <b id="origFormatConvert">—</b> &nbsp;→&nbsp; Nuevo formato: <b id="outFormatConvert">—</b></div>
+          <div class="sel-info" id="selInfoConvert"></div>
+          <div class="thumbs" id="thumbsConvert"></div>
+          <button class="add-more" id="addMoreConvert" type="button">+ Agregar más imágenes</button>
         </div>
         <div class="controls">
           <div class="field">
@@ -368,82 +387,11 @@
               <span id="qualityValConvert">90%</span>
             </div>
           </div>
-          <div class="warn show" id="jpgWarnConvert" style="display:none;">JPG no admite transparencia: el fondo transparente se rellenará de blanco.</div>
-          <button class="btn btn-primary" id="downloadBtnConvert">Descargar imagen</button>
-          <button class="btn btn-ghost" id="resetBtnConvert">Elegir otra imagen</button>
+          <div class="warn" id="jpgWarnConvert">JPG no admite transparencia: el fondo transparente se rellenará de blanco.</div>
+          <button class="btn btn-primary" id="downloadBtnConvert" type="button">Descargar imagen</button>
+          <button class="btn btn-ghost" id="downloadOneConvert" type="button" style="display:none;">Descargar solo la seleccionada</button>
+          <button class="btn btn-ghost" id="resetBtnConvert" type="button">Elegir otras imágenes</button>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 4: BANNER -->
-  <div class="panel tab-page" id="page-banner">
-    <div class="dropzone" id="dropzoneBanner">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 16.5V18a2 2 0 002 2h12a2 2 0 002-2v-1.5M7 9l5-5 5 5M12 4v13"/></svg>
-      <div class="title">Arrastrá una imagen acá o hacé clic para elegirla</div>
-      <div class="sub">PNG, JPG o WEBP</div>
-      <input type="file" id="fileInputBanner" accept="image/*">
-    </div>
-
-    <div class="workspace" id="workspaceBanner">
-      <div class="body-grid">
-        <div class="preview-side">
-          <canvas class="preview" id="canvasBanner"></canvas>
-          <div class="dims-readout">Tamaño de exportación: <b>120 × 240 px</b></div>
-          <div class="dims-readout" id="dimsBanner">—</div>
-        </div>
-        <div class="controls">
-          <div class="field">
-            <label>Link de redirección</label>
-            <input type="text" id="urlInputBanner" placeholder="https://ejemplo.com/promo?utm_source=...">
-          </div>
-          <div class="field">
-            <label>Tracking de impresiones (opcional)</label>
-            <input type="text" id="trackingInputBanner" placeholder="https://tracking.ejemplo.com/pixel?... (opcional)">
-          </div>
-          <div class="warn" id="noUrlWarnBanner">Ingresá un link antes de exportar.</div>
-          <button class="btn btn-primary" id="exportBtnBanner">Descargar HTML</button>
-          <button class="btn btn-ghost" id="resetBtnBanner">Elegir otra imagen</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TAB 5: CARRUSEL -->
-  <div class="panel tab-page" id="page-carousel">
-    <div class="controls" style="padding:22px 22px 4px 22px; border-bottom:1px solid var(--line);">
-      <div class="field">
-        <label>Imagen fija (overlay, siempre visible arriba del carrusel — opcional)</label>
-        <input type="file" id="fixedInputCarousel" accept="image/*">
-        <div id="fixedInfoCarousel" style="font-size:12px;color:var(--text-dim);margin-top:6px;">Ninguna cargada.</div>
-      </div>
-
-      <div class="field">
-        <label>Slides del carrusel (imagen + link, uno por slide)</label>
-        <div class="preset-list" id="slidesListCarousel"></div>
-        <button class="btn btn-ghost btn-small" id="addSlideBtn" type="button" style="margin-top:10px;">+ Agregar slide</button>
-      </div>
-
-      <div class="field" style="max-width:160px;">
-        <label>Autoplay (segundos)</label>
-        <input type="number" id="intervalInputCarousel" value="3" min="1" step="0.5">
-      </div>
-
-      <div class="warn" id="warnCarousel"></div>
-    </div>
-
-    <div class="body-grid">
-      <div class="preview-side">
-        <div class="carousel-stage" id="stagePreviewCarousel">
-          <div class="carousel-track" id="trackPreviewCarousel"></div>
-          <img class="carousel-fixed" id="fixedOverlayPreview" alt="">
-        </div>
-        <div class="dims-readout">Tamaño de exportación: <b>120 × 240 px</b></div>
-        <div class="dims-readout" id="dimsCarousel">—</div>
-      </div>
-      <div class="controls">
-        <button class="btn btn-primary" id="exportCarouselBtn">Descargar HTML</button>
-        <button class="btn btn-ghost" id="resetCarouselBtn">Reiniciar todo</button>
       </div>
     </div>
   </div>
@@ -452,22 +400,325 @@
 </div>
 
 <script>
-  // ---------- utilidad compartida: achicar/comprimir antes de embeber en base64 ----------
-  // evita exports de varios MB cuando se suben imágenes en su resolución original.
-  function downscaleToDataUrl(imageEl, maxDim) {
-    let w = imageEl.naturalWidth, h = imageEl.naturalHeight;
-    if (Math.max(w, h) > maxDim) {
-      const scale = maxDim / Math.max(w, h);
-      w = Math.round(w * scale);
-      h = Math.round(h * scale);
-    }
+  // =====================================================================
+  // UTILIDADES COMPARTIDAS
+  // =====================================================================
+
+  // ---------- color de fondo: promedio de las 4 esquinas (ponderado por opacidad) ----------
+  function detectBackgroundColor(image) {
+    const w = image.naturalWidth, h = image.naturalHeight;
+    const s = Math.max(2, Math.floor(Math.min(w, h) * 0.03));
     const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const cctx = c.getContext('2d');
-    cctx.drawImage(imageEl, 0, 0, w, h);
-    let dataUrl = c.toDataURL('image/webp', 0.85);
-    if (!dataUrl.startsWith('data:image/webp')) dataUrl = c.toDataURL('image/png'); // fallback si el navegador no soporta webp
-    return { dataUrl, w, h };
+    c.width = s; c.height = s;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    const corners = [[0, 0], [w - s, 0], [0, h - s], [w - s, h - s]];
+    let r = 0, g = 0, b = 0, a = 0, n = 0;
+    corners.forEach(([sx, sy]) => {
+      x.clearRect(0, 0, s, s);
+      x.drawImage(image, sx, sy, s, s, 0, 0, s, s);
+      const d = x.getImageData(0, 0, s, s).data;
+      for (let i = 0; i < d.length; i += 4) {
+        r += d[i] * d[i + 3]; g += d[i + 1] * d[i + 3]; b += d[i + 2] * d[i + 3];
+        a += d[i + 3]; n++;
+      }
+    });
+    if (a === 0) return 'rgba(0, 0, 0, 0)'; // esquinas totalmente transparentes
+    return `rgba(${Math.round(r / a)}, ${Math.round(g / a)}, ${Math.round(b / a)}, ${(a / n / 255).toFixed(3)})`;
+  }
+
+  // ---------- dibuja la imagen dentro de w×h: estirada, o completa y centrada sobre el color de fondo ----------
+  function drawFitted(ctx, img, canvasW, canvasH, bgColor, stretch) {
+    if (stretch) {
+      ctx.drawImage(img, 0, 0, canvasW, canvasH);
+      return;
+    }
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvasW, canvasH);
+    const scale = Math.min(canvasW / img.naturalWidth, canvasH / img.naturalHeight);
+    const drawW = img.naturalWidth * scale;
+    const drawH = img.naturalHeight * scale;
+    ctx.drawImage(img, (canvasW - drawW) / 2, (canvasH - drawH) / 2, drawW, drawH);
+  }
+
+  // dibuja un item en un canvas (si el destino es JPG, se parte de fondo blanco porque JPG no tiene transparencia)
+  function renderInto(canvas, item, w, h, stretch, format) {
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+    if (format === 'image/jpeg') {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, w, h);
+    }
+    drawFitted(ctx, item.img, w, h, item.bg, stretch);
+  }
+  function renderOffscreen(item, w, h, stretch, format) {
+    const c = document.createElement('canvas');
+    renderInto(c, item, w, h, stretch, format);
+    return c;
+  }
+
+  function canvasToBlob(canvas, format, quality) {
+    return new Promise(resolve => canvas.toBlob(resolve, format, quality));
+  }
+  function extFromMime(mime) {
+    return ({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' })[mime] || 'png';
+  }
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  function uniqueName(name, used) {
+    if (!used.has(name)) { used.add(name); return name; }
+    const dot = name.lastIndexOf('.');
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    const ext = dot > 0 ? name.slice(dot) : '';
+    let i = 2;
+    while (used.has(`${base}-${i}${ext}`)) i++;
+    const finalName = `${base}-${i}${ext}`;
+    used.add(finalName);
+    return finalName;
+  }
+
+  // ---------- ZIP mínimo (sin compresión: las imágenes ya vienen comprimidas) ----------
+  const CRC_TABLE = (function () {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  async function makeZip(files) { // files: [{ name, blob }]
+    const enc = new TextEncoder();
+    const parts = [], central = [];
+    let offset = 0;
+    const now = new Date();
+    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
+    for (const f of files) {
+      const data = new Uint8Array(await f.blob.arrayBuffer());
+      const nameBytes = enc.encode(f.name);
+      const crc = crc32(data);
+
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0x0800, true);          // nombre en UTF-8
+      local.setUint16(8, 0, true);               // sin compresión
+      local.setUint16(10, dosTime, true);
+      local.setUint16(12, dosDate, true);
+      local.setUint32(14, crc, true);
+      local.setUint32(18, data.length, true);
+      local.setUint32(22, data.length, true);
+      local.setUint16(26, nameBytes.length, true);
+      local.setUint16(28, 0, true);
+      parts.push(local.buffer, nameBytes, data);
+
+      const cen = new DataView(new ArrayBuffer(46));
+      cen.setUint32(0, 0x02014b50, true);
+      cen.setUint16(4, 20, true);
+      cen.setUint16(6, 20, true);
+      cen.setUint16(8, 0x0800, true);
+      cen.setUint16(10, 0, true);
+      cen.setUint16(12, dosTime, true);
+      cen.setUint16(14, dosDate, true);
+      cen.setUint32(16, crc, true);
+      cen.setUint32(20, data.length, true);
+      cen.setUint32(24, data.length, true);
+      cen.setUint16(28, nameBytes.length, true);
+      cen.setUint16(30, 0, true);
+      cen.setUint16(32, 0, true);
+      cen.setUint16(34, 0, true);
+      cen.setUint16(36, 0, true);
+      cen.setUint32(38, 0, true);
+      cen.setUint32(42, offset, true);
+      central.push(cen.buffer, nameBytes);
+
+      offset += 30 + nameBytes.length + data.length;
+    }
+
+    let centralSize = 0;
+    central.forEach(c => { centralSize += c.byteLength; });
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(4, 0, true);
+    end.setUint16(6, 0, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, offset, true);
+    end.setUint16(20, 0, true);
+
+    return new Blob([...parts, ...central, end.buffer], { type: 'application/zip' });
+  }
+
+  // ---------- botones de descarga: una imagen → archivo suelto; varias → ZIP ----------
+  function updateExportButtons(n, primary, single) {
+    primary.textContent = n > 1 ? `Descargar ${n} imágenes (.zip)` : 'Descargar imagen';
+    single.style.display = n > 1 ? 'block' : 'none';
+  }
+
+  async function runExport({ items, selectedItem, onlySelected, primary, single, makeBlob, fileName, zipName }) {
+    const targets = (onlySelected || items.length === 1) ? [selectedItem] : items.slice();
+    const label = primary.textContent;
+    primary.disabled = true; single.disabled = true;
+    try {
+      if (targets.length === 1) {
+        const blob = await makeBlob(targets[0]);
+        downloadBlob(blob, fileName(targets[0], extFromMime(blob.type)));
+      } else {
+        const used = new Set();
+        const files = [];
+        for (let i = 0; i < targets.length; i++) {
+          primary.textContent = `Procesando ${i + 1}/${targets.length}…`;
+          await new Promise(r => setTimeout(r, 0)); // deja respirar a la interfaz
+          const blob = await makeBlob(targets[i]);
+          files.push({ name: uniqueName(fileName(targets[i], extFromMime(blob.type)), used), blob });
+        }
+        primary.textContent = 'Armando ZIP…';
+        downloadBlob(await makeZip(files), zipName);
+      }
+    } finally {
+      primary.disabled = false; single.disabled = false;
+      primary.textContent = label;
+    }
+  }
+
+  // ---------- lista de imágenes cargadas (compartida por las 3 pestañas) ----------
+  // - la zona de carga / "elegir archivos" REEMPLAZA el conjunto; "+ Agregar más" lo AMPLÍA
+  function createImageList({ dropzone, fileInput, workspace, thumbsEl, infoEl, addBtn, onChange }) {
+    const items = [];
+    let selected = 0;
+
+    const addInput = document.createElement('input');
+    addInput.type = 'file'; addInput.accept = 'image/*'; addInput.multiple = true;
+    addInput.style.display = 'none';
+    document.body.appendChild(addInput);
+
+    function loadOne(file) {
+      return new Promise(resolve => {
+        const url = URL.createObjectURL(file);
+        const im = new Image();
+        im.onload = () => {
+          if (!im.naturalWidth || !im.naturalHeight) { URL.revokeObjectURL(url); resolve(null); return; }
+          resolve({
+            name: file.name.replace(/\.[^.]+$/, '') || 'imagen',
+            mime: file.type, img: im, url,
+            w: im.naturalWidth, h: im.naturalHeight,
+            bg: detectBackgroundColor(im)
+          });
+        };
+        im.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+        im.src = url;
+      });
+    }
+
+    function releaseAll() {
+      items.forEach(it => URL.revokeObjectURL(it.url));
+      items.length = 0;
+      selected = 0;
+    }
+
+    function renderThumbs() {
+      thumbsEl.innerHTML = '';
+      const n = items.length;
+      if (n > 1) {
+        items.forEach((it, i) => {
+          const t = document.createElement('div');
+          t.className = 'thumb' + (i === selected ? ' sel' : '');
+          t.title = it.name;
+          const im = document.createElement('img');
+          im.src = it.url; im.alt = it.name;
+          const x = document.createElement('button');
+          x.type = 'button'; x.className = 'x'; x.textContent = '✕'; x.title = 'Quitar esta imagen';
+          x.addEventListener('click', ev => { ev.stopPropagation(); remove(i); });
+          t.appendChild(im); t.appendChild(x);
+          t.addEventListener('click', () => select(i));
+          thumbsEl.appendChild(t);
+        });
+        infoEl.innerHTML = `Imagen <b>${selected + 1}</b> de <b>${n}</b> — ${items[selected].name}`;
+      } else {
+        infoEl.textContent = '';
+      }
+    }
+
+    function changed(reason, wasEmpty) {
+      workspace.classList.toggle('active', items.length > 0);
+      renderThumbs();
+      onChange({ reason, wasEmpty: !!wasEmpty });
+    }
+
+    async function addFiles(fileList, append) {
+      const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+      if (!files.length) return;
+      const loaded = (await Promise.all(files.map(loadOne))).filter(Boolean);
+      if (!loaded.length) return;
+      if (!append) releaseAll();
+      const wasEmpty = items.length === 0;
+      const firstNew = items.length;
+      items.push(...loaded);
+      selected = wasEmpty ? 0 : firstNew;
+      changed('add', wasEmpty);
+    }
+
+    function select(i) {
+      if (i < 0 || i >= items.length) return;
+      selected = i;
+      changed('select');
+    }
+
+    function remove(i) {
+      if (i < 0 || i >= items.length) return;
+      URL.revokeObjectURL(items[i].url);
+      items.splice(i, 1);
+      if (selected >= items.length) selected = Math.max(0, items.length - 1);
+      else if (i < selected) selected--;
+      changed(items.length ? 'remove' : 'clear');
+    }
+
+    function clear() {
+      releaseAll();
+      fileInput.value = '';
+      changed('clear');
+    }
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault(); dropzone.classList.remove('drag');
+      if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files, false);
+    });
+    fileInput.addEventListener('change', e => {
+      const files = Array.from(e.target.files);
+      e.target.value = '';
+      if (files.length) addFiles(files, false);
+    });
+    addBtn.addEventListener('click', () => addInput.click());
+    addInput.addEventListener('change', e => {
+      const files = Array.from(e.target.files);
+      e.target.value = '';
+      if (files.length) addFiles(files, true);
+    });
+
+    return {
+      items,
+      get selected() { return selected; },
+      get current() { return items[selected] || null; },
+      clear
+    };
   }
 
   // ---------- tabs ----------
@@ -483,108 +734,67 @@
   });
   tabDescEl.textContent = document.querySelector('.tab-btn.active').dataset.desc;
 
-  // ================= HELPERS: fondo + contain =================
-  function detectBackgroundColor(image) {
-    const off = document.createElement('canvas');
-    off.width = image.naturalWidth;
-    off.height = image.naturalHeight;
-    const octx = off.getContext('2d');
-    octx.drawImage(image, 0, 0);
-    const w = off.width, h = off.height;
-    const s = Math.max(2, Math.floor(Math.min(w, h) * 0.03));
-    const corners = [
-      octx.getImageData(0, 0, s, s),
-      octx.getImageData(w - s, 0, s, s),
-      octx.getImageData(0, h - s, s, s),
-      octx.getImageData(w - s, h - s, s, s)
-    ];
-    function avg(imgData) {
-      let r = 0, g = 0, b = 0, a = 0, n = 0;
-      const d = imgData.data;
-      for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i+1]; b += d[i+2]; a += d[i+3]; n++; }
-      return [r / n, g / n, b / n, a / n];
-    }
-    const avgs = corners.map(avg);
-    let r = 0, g = 0, b = 0, a = 0;
-    avgs.forEach(c => { r += c[0]; g += c[1]; b += c[2]; a += c[3]; });
-    r /= 4; g /= 4; b /= 4; a /= 4;
-    return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${(a / 255).toFixed(3)})`;
-  }
+  // =====================================================================
+  // PESTAÑA 1: MEDIDA MANUAL
+  // =====================================================================
+  (function () {
+    const $ = id => document.getElementById(id);
+    const canvas = $('canvasManual');
+    const widthInput = $('widthInput');
+    const heightInput = $('heightInput');
+    const lockBtn = $('lockBtn');
+    const origDimsEl = $('origDimsManual');
+    const outDimsEl = $('outDimsManual');
+    const formatSelect = $('formatSelectManual');
+    const qualityField = $('qualityFieldManual');
+    const qualityRange = $('qualityRangeManual');
+    const qualityVal = $('qualityValManual');
+    const fitModeSelect = $('fitModeManual');
+    const ratioWarn = $('ratioWarnManual');
+    const downloadBtn = $('downloadBtnManual');
+    const downloadOneBtn = $('downloadOneBtnManual');
+    const resetBtn = $('resetBtnManual');
 
-  function drawFitted(ctx, img, canvasW, canvasH, bgColor, forceStretch) {
-    ctx.clearRect(0, 0, canvasW, canvasH);
-    if (forceStretch) {
-      ctx.drawImage(img, 0, 0, canvasW, canvasH);
-      return;
-    }
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, canvasW, canvasH);
-    const scale = Math.min(canvasW / img.naturalWidth, canvasH / img.naturalHeight);
-    const drawW = img.naturalWidth * scale;
-    const drawH = img.naturalHeight * scale;
-    const dx = (canvasW - drawW) / 2;
-    const dy = (canvasH - drawH) / 2;
-    ctx.drawImage(img, dx, dy, drawW, drawH);
-  }
+    let aspectLocked = true;
 
-  // ================= MANUAL TAB =================
-  (function() {
-    const dropzone = document.getElementById('dropzoneManual');
-    const fileInput = document.getElementById('fileInputManual');
-    const workspace = document.getElementById('workspaceManual');
-    const canvas = document.getElementById('canvasManual');
-    const ctx = canvas.getContext('2d');
-    const widthInput = document.getElementById('widthInput');
-    const heightInput = document.getElementById('heightInput');
-    const lockBtn = document.getElementById('lockBtn');
-    const origDimsEl = document.getElementById('origDimsManual');
-    const outDimsEl = document.getElementById('outDimsManual');
-    const formatSelect = document.getElementById('formatSelectManual');
-    const qualityField = document.getElementById('qualityFieldManual');
-    const qualityRange = document.getElementById('qualityRangeManual');
-    const qualityVal = document.getElementById('qualityValManual');
-    const downloadBtn = document.getElementById('downloadBtnManual');
-    const resetBtn = document.getElementById('resetBtnManual');
-    const ratioWarn = document.getElementById('ratioWarnManual');
-    const fitModeSelect = document.getElementById('fitModeManual');
-
-    let img = null, origW = 0, origH = 0, aspectLocked = true, sourceFileName = 'imagen', bgColor = 'rgba(255,255,255,1)';
-
-    dropzone.addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
-    dropzone.addEventListener('drop', e => {
-      e.preventDefault(); dropzone.classList.remove('drag');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    const list = createImageList({
+      dropzone: $('dropzoneManual'), fileInput: $('fileInputManual'), workspace: $('workspaceManual'),
+      thumbsEl: $('thumbsManual'), infoEl: $('selInfoManual'), addBtn: $('addMoreManual'),
+      onChange: ({ reason, wasEmpty }) => {
+        if (reason === 'add' && wasEmpty) {
+          widthInput.value = list.items[0].w;
+          heightInput.value = list.items[0].h;
+        }
+        updateExportButtons(list.items.length, downloadBtn, downloadOneBtn);
+        render();
+      }
     });
-    fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
 
-    function handleFile(file) {
-      if (!file.type.startsWith('image/')) return;
-      sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'imagen';
-      const reader = new FileReader();
-      reader.onload = e => {
-        const image = new Image();
-        image.onload = () => {
-          img = image; origW = image.naturalWidth; origH = image.naturalHeight;
-          bgColor = detectBackgroundColor(image);
-          widthInput.value = origW; heightInput.value = origH;
-          origDimsEl.textContent = origW + ' × ' + origH + ' px';
-          workspace.classList.add('active');
-          render();
-        };
-        image.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
+    const readSize = () => ({
+      w: Math.max(1, parseInt(widthInput.value) || 1),
+      h: Math.max(1, parseInt(heightInput.value) || 1)
+    });
+
+    function render() {
+      const it = list.current;
+      if (!it) return;
+      const { w, h } = readSize();
+      const stretch = fitModeSelect.value === 'stretch';
+      renderInto(canvas, it, w, h, stretch, formatSelect.value);
+      origDimsEl.textContent = it.w + ' × ' + it.h + ' px';
+      outDimsEl.textContent = w + ' × ' + h + ' px';
+      ratioWarn.classList.toggle('show', !stretch && Math.abs((it.w / it.h) - (w / h)) > 0.01);
     }
 
     lockBtn.addEventListener('click', () => { aspectLocked = !aspectLocked; lockBtn.classList.toggle('on', aspectLocked); });
     widthInput.addEventListener('input', () => {
-      if (aspectLocked && origW) heightInput.value = Math.round(widthInput.value * (origH / origW));
+      const ref = list.items[0];
+      if (aspectLocked && ref) heightInput.value = Math.round(widthInput.value * (ref.h / ref.w));
       render();
     });
     heightInput.addEventListener('input', () => {
-      if (aspectLocked && origH) widthInput.value = Math.round(heightInput.value * (origW / origH));
+      const ref = list.items[0];
+      if (aspectLocked && ref) widthInput.value = Math.round(heightInput.value * (ref.w / ref.h));
       render();
     });
     formatSelect.addEventListener('change', () => {
@@ -592,60 +802,51 @@
       render();
     });
     fitModeSelect.addEventListener('change', render);
-    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; render(); });
+    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; });
 
-    function render() {
-      if (!img) return;
-      const w = Math.max(1, parseInt(widthInput.value) || 1);
-      const h = Math.max(1, parseInt(heightInput.value) || 1);
-      canvas.width = w; canvas.height = h;
-      const needsPad = Math.abs((origW / origH) - (w / h)) > 0.01;
+    function doExport(onlySelected) {
+      if (!list.current) return;
+      const { w, h } = readSize();
       const stretch = fitModeSelect.value === 'stretch';
-      drawFitted(ctx, img, w, h, bgColor, stretch);
-      outDimsEl.textContent = w + ' × ' + h + ' px';
-      ratioWarn.classList.toggle('show', needsPad && !stretch);
-    }
-
-    downloadBtn.addEventListener('click', () => {
       const format = formatSelect.value;
       const quality = format === 'image/png' ? undefined : qualityRange.value / 100;
-      const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `${sourceFileName}-${canvas.width}x${canvas.height}.${ext}`; a.click();
-        URL.revokeObjectURL(url);
-      }, format, quality);
-    });
-
-    resetBtn.addEventListener('click', () => { img = null; workspace.classList.remove('active'); fileInput.value = ''; });
+      runExport({
+        items: list.items, selectedItem: list.current, onlySelected,
+        primary: downloadBtn, single: downloadOneBtn,
+        makeBlob: it => canvasToBlob(renderOffscreen(it, w, h, stretch, format), format, quality),
+        fileName: (it, ext) => `${it.name}-${w}x${h}.${ext}`,
+        zipName: `imagenes-${w}x${h}.zip`
+      });
+    }
+    downloadBtn.addEventListener('click', () => doExport(false));
+    downloadOneBtn.addEventListener('click', () => doExport(true));
+    resetBtn.addEventListener('click', () => list.clear());
   })();
 
-  // ================= PRESET TAB =================
-  (function() {
-    const dropzone = document.getElementById('dropzonePreset');
-    const fileInput = document.getElementById('fileInputPreset');
-    const workspace = document.getElementById('workspacePreset');
-    const canvas = document.getElementById('canvasPreset');
-    const ctx = canvas.getContext('2d');
-    const origDimsEl = document.getElementById('origDimsPreset');
-    const outDimsEl = document.getElementById('outDimsPreset');
-    const presetSelect = document.getElementById('presetSelect');
-    const formatSelect = document.getElementById('formatSelectPreset');
-    const qualityField = document.getElementById('qualityFieldPreset');
-    const qualityRange = document.getElementById('qualityRangePreset');
-    const qualityVal = document.getElementById('qualityValPreset');
-    const downloadBtn = document.getElementById('downloadBtnPreset');
-    const resetBtn = document.getElementById('resetBtnPreset');
-    const ratioWarn = document.getElementById('ratioWarnPreset');
-    const fitModeSelect = document.getElementById('fitModePreset');
-    const presetListEl = document.getElementById('presetList');
-    const newPresetName = document.getElementById('newPresetName');
-    const newPresetW = document.getElementById('newPresetW');
-    const newPresetH = document.getElementById('newPresetH');
-    const addPresetBtn = document.getElementById('addPresetBtn');
+  // =====================================================================
+  // PESTAÑA 2: POR FORMATO
+  // =====================================================================
+  (function () {
+    const $ = id => document.getElementById(id);
+    const canvas = $('canvasPreset');
+    const origDimsEl = $('origDimsPreset');
+    const outDimsEl = $('outDimsPreset');
+    const presetSelect = $('presetSelect');
+    const formatSelect = $('formatSelectPreset');
+    const qualityField = $('qualityFieldPreset');
+    const qualityRange = $('qualityRangePreset');
+    const qualityVal = $('qualityValPreset');
+    const fitModeSelect = $('fitModePreset');
+    const ratioWarn = $('ratioWarnPreset');
+    const downloadBtn = $('downloadBtnPreset');
+    const downloadOneBtn = $('downloadOnePreset');
+    const resetBtn = $('resetBtnPreset');
+    const presetListEl = $('presetList');
+    const newPresetName = $('newPresetName');
+    const newPresetW = $('newPresetW');
+    const newPresetH = $('newPresetH');
+    const addPresetBtn = $('addPresetBtn');
 
-    let img = null, origW = 0, origH = 0, sourceFileName = 'imagen', bgColor = 'rgba(255,255,255,1)';
     let presets = [
       { name: 'push', w: 452, h: 226 },
       { name: 'logo', w: 48, h: 48 },
@@ -656,7 +857,20 @@
       { name: 'banner', w: 300, h: 250 }
     ];
 
-    function renderPresetSelect() {
+    const list = createImageList({
+      dropzone: $('dropzonePreset'), fileInput: $('fileInputPreset'), workspace: $('workspacePreset'),
+      thumbsEl: $('thumbsPreset'), infoEl: $('selInfoPreset'), addBtn: $('addMorePreset'),
+      onChange: () => {
+        updateExportButtons(list.items.length, downloadBtn, downloadOneBtn);
+        applyPreset();
+      }
+    });
+
+    function currentPreset() {
+      return presets[presetSelect.value] || presets[0] || null;
+    }
+
+    function renderPresetSelect(keepIndex) {
       presetSelect.innerHTML = '';
       presets.forEach((p, i) => {
         const opt = document.createElement('option');
@@ -664,25 +878,33 @@
         opt.textContent = `${p.name} — ${p.w}×${p.h}`;
         presetSelect.appendChild(opt);
       });
+      if (keepIndex !== undefined && presets.length) presetSelect.value = Math.min(keepIndex, presets.length - 1);
     }
     function renderPresetList() {
       presetListEl.innerHTML = '';
       presets.forEach((p, i) => {
         const row = document.createElement('div');
         row.className = 'preset-row';
-        row.innerHTML = `<div><span class="name">${p.name}</span><span class="dims">${p.w}×${p.h}</span></div>`;
+        const label = document.createElement('div');
+        const nameEl = document.createElement('span');
+        nameEl.className = 'name'; nameEl.textContent = p.name;
+        const dimsEl = document.createElement('span');
+        dimsEl.className = 'dims'; dimsEl.textContent = `${p.w}×${p.h}`;
+        label.appendChild(nameEl); label.appendChild(dimsEl);
         const del = document.createElement('button');
-        del.className = 'del'; del.textContent = '✕';
+        del.className = 'del'; del.type = 'button'; del.textContent = '✕'; del.title = 'Quitar formato';
         del.addEventListener('click', () => {
+          const prev = parseInt(presetSelect.value) || 0;
           presets.splice(i, 1);
-          renderPresetSelect(); renderPresetList();
-          if (presets.length && img) applyPreset();
+          renderPresetSelect(prev > i ? prev - 1 : prev);
+          renderPresetList();
+          applyPreset();
         });
-        row.appendChild(del);
+        row.appendChild(label); row.appendChild(del);
         presetListEl.appendChild(row);
       });
     }
-    renderPresetSelect(); renderPresetList();
+    renderPresetSelect(0); renderPresetList();
 
     addPresetBtn.addEventListener('click', () => {
       const name = newPresetName.value.trim();
@@ -690,39 +912,9 @@
       if (!name || !w || !h) return;
       presets.push({ name, w, h });
       newPresetName.value = ''; newPresetW.value = ''; newPresetH.value = '';
-      renderPresetSelect(); renderPresetList();
-      presetSelect.value = presets.length - 1;
-      if (img) applyPreset();
+      renderPresetSelect(presets.length - 1); renderPresetList();
+      applyPreset();
     });
-
-    dropzone.addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
-    dropzone.addEventListener('drop', e => {
-      e.preventDefault(); dropzone.classList.remove('drag');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
-
-    function handleFile(file) {
-      if (!file.type.startsWith('image/')) return;
-      sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'imagen';
-      const reader = new FileReader();
-      reader.onload = e => {
-        const image = new Image();
-        image.onload = () => {
-          img = image; origW = image.naturalWidth; origH = image.naturalHeight;
-          bgColor = detectBackgroundColor(image);
-          origDimsEl.textContent = origW + ' × ' + origH + ' px';
-          workspace.classList.add('active');
-          if (!presets.length) return;
-          if (presetSelect.value === '') presetSelect.value = 0;
-          applyPreset();
-        };
-        image.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
 
     presetSelect.addEventListener('change', applyPreset);
     fitModeSelect.addEventListener('change', applyPreset);
@@ -730,617 +922,97 @@
       qualityField.style.display = formatSelect.value === 'image/png' ? 'none' : 'block';
       applyPreset();
     });
-    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; applyPreset(); });
+    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; });
 
     function applyPreset() {
-      if (!img || !presets.length) return;
-      const p = presets[presetSelect.value] || presets[0];
-      canvas.width = p.w; canvas.height = p.h;
-      const needsPad = Math.abs((origW / origH) - (p.w / p.h)) > 0.01;
+      const it = list.current, p = currentPreset();
+      if (!it || !p) return;
       const stretch = fitModeSelect.value === 'stretch';
-      drawFitted(ctx, img, p.w, p.h, bgColor, stretch);
+      renderInto(canvas, it, p.w, p.h, stretch, formatSelect.value);
+      origDimsEl.textContent = it.w + ' × ' + it.h + ' px';
       outDimsEl.textContent = p.w + ' × ' + p.h + ' px';
-      ratioWarn.classList.toggle('show', needsPad && !stretch);
+      ratioWarn.classList.toggle('show', !stretch && Math.abs((it.w / it.h) - (p.w / p.h)) > 0.01);
     }
 
-    downloadBtn.addEventListener('click', () => {
-      if (!img) return;
-      const p = presets[presetSelect.value] || presets[0];
+    function doExport(onlySelected) {
+      const p = currentPreset();
+      if (!list.current || !p) return;
+      const stretch = fitModeSelect.value === 'stretch';
       const format = formatSelect.value;
       const quality = format === 'image/png' ? undefined : qualityRange.value / 100;
-      const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `${sourceFileName}-${p.name}-${p.w}x${p.h}.${ext}`; a.click();
-        URL.revokeObjectURL(url);
-      }, format, quality);
-    });
-
-    resetBtn.addEventListener('click', () => { img = null; workspace.classList.remove('active'); fileInput.value = ''; });
+      runExport({
+        items: list.items, selectedItem: list.current, onlySelected,
+        primary: downloadBtn, single: downloadOneBtn,
+        makeBlob: it => canvasToBlob(renderOffscreen(it, p.w, p.h, stretch, format), format, quality),
+        fileName: (it, ext) => `${it.name}-${p.name}-${p.w}x${p.h}.${ext}`,
+        zipName: `imagenes-${p.name}-${p.w}x${p.h}.zip`
+      });
+    }
+    downloadBtn.addEventListener('click', () => doExport(false));
+    downloadOneBtn.addEventListener('click', () => doExport(true));
+    resetBtn.addEventListener('click', () => list.clear());
   })();
 
-  // ================= CONVERT TAB =================
-  (function() {
-    const dropzone = document.getElementById('dropzoneConvert');
-    const fileInput = document.getElementById('fileInputConvert');
-    const workspace = document.getElementById('workspaceConvert');
-    const canvas = document.getElementById('canvasConvert');
-    const ctx = canvas.getContext('2d');
-    const origFormatEl = document.getElementById('origFormatConvert');
-    const outFormatEl = document.getElementById('outFormatConvert');
-    const formatSelect = document.getElementById('formatSelectConvert');
-    const qualityField = document.getElementById('qualityFieldConvert');
-    const qualityRange = document.getElementById('qualityRangeConvert');
-    const qualityVal = document.getElementById('qualityValConvert');
-    const jpgWarn = document.getElementById('jpgWarnConvert');
-    const downloadBtn = document.getElementById('downloadBtnConvert');
-    const resetBtn = document.getElementById('resetBtnConvert');
-
-    let img = null, sourceFileName = 'imagen', sourceMime = '';
+  // =====================================================================
+  // PESTAÑA 3: CONVERTIR FORMATO
+  // =====================================================================
+  (function () {
+    const $ = id => document.getElementById(id);
+    const canvas = $('canvasConvert');
+    const origFormatEl = $('origFormatConvert');
+    const outFormatEl = $('outFormatConvert');
+    const formatSelect = $('formatSelectConvert');
+    const qualityField = $('qualityFieldConvert');
+    const qualityRange = $('qualityRangeConvert');
+    const qualityVal = $('qualityValConvert');
+    const jpgWarn = $('jpgWarnConvert');
+    const downloadBtn = $('downloadBtnConvert');
+    const downloadOneBtn = $('downloadOneConvert');
+    const resetBtn = $('resetBtnConvert');
 
     const extLabels = { 'image/png': 'PNG', 'image/jpeg': 'JPG', 'image/webp': 'WEBP' };
 
-    dropzone.addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
-    dropzone.addEventListener('drop', e => {
-      e.preventDefault(); dropzone.classList.remove('drag');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    const list = createImageList({
+      dropzone: $('dropzoneConvert'), fileInput: $('fileInputConvert'), workspace: $('workspaceConvert'),
+      thumbsEl: $('thumbsConvert'), infoEl: $('selInfoConvert'), addBtn: $('addMoreConvert'),
+      onChange: () => {
+        updateExportButtons(list.items.length, downloadBtn, downloadOneBtn);
+        render();
+      }
     });
-    fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
 
-    function handleFile(file) {
-      if (!file.type.startsWith('image/')) return;
-      sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'imagen';
-      sourceMime = file.type;
-      const reader = new FileReader();
-      reader.onload = e => {
-        const image = new Image();
-        image.onload = () => {
-          img = image;
-          origFormatEl.textContent = extLabels[sourceMime] || (sourceMime.split('/')[1] || '—').toUpperCase();
-          workspace.classList.add('active');
-          render();
-        };
-        image.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
+    function render() {
+      const it = list.current;
+      if (!it) return;
+      const format = formatSelect.value;
+      renderInto(canvas, it, it.w, it.h, true, format);
+      origFormatEl.textContent = extLabels[it.mime] || (it.mime.split('/')[1] || '—').toUpperCase();
+      outFormatEl.textContent = extLabels[format];
+      const needsWhite = format === 'image/jpeg' && list.items.some(x => x.mime !== 'image/jpeg');
+      jpgWarn.classList.toggle('show', needsWhite);
     }
 
     formatSelect.addEventListener('change', () => {
       qualityField.style.display = formatSelect.value === 'image/png' ? 'none' : 'block';
       render();
     });
-    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; render(); });
+    qualityRange.addEventListener('input', () => { qualityVal.textContent = qualityRange.value + '%'; });
 
-    function render() {
-      if (!img) return;
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (formatSelect.value === 'image/jpeg') {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-      ctx.drawImage(img, 0, 0);
-      outFormatEl.textContent = extLabels[formatSelect.value];
-      jpgWarn.style.display = (formatSelect.value === 'image/jpeg' && sourceMime !== 'image/jpeg') ? 'block' : 'none';
-    }
-
-    downloadBtn.addEventListener('click', () => {
-      if (!img) return;
+    function doExport(onlySelected) {
+      if (!list.current) return;
       const format = formatSelect.value;
       const quality = format === 'image/png' ? undefined : qualityRange.value / 100;
-      const ext = format === 'image/png' ? 'png' : (format === 'image/webp' ? 'webp' : 'jpg');
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `${sourceFileName}.${ext}`; a.click();
-        URL.revokeObjectURL(url);
-      }, format, quality);
-    });
-
-    resetBtn.addEventListener('click', () => { img = null; workspace.classList.remove('active'); fileInput.value = ''; });
-  })();
-
-  // ================= BANNER TAB =================
-  (function() {
-    const W = 120, H = 240;
-    const dropzone = document.getElementById('dropzoneBanner');
-    const fileInput = document.getElementById('fileInputBanner');
-    const workspace = document.getElementById('workspaceBanner');
-    const canvas = document.getElementById('canvasBanner');
-    const ctx = canvas.getContext('2d');
-    const dimsEl = document.getElementById('dimsBanner');
-    const urlInput = document.getElementById('urlInputBanner');
-    const trackingInput = document.getElementById('trackingInputBanner');
-    const exportBtn = document.getElementById('exportBtnBanner');
-    const resetBtn = document.getElementById('resetBtnBanner');
-    const noUrlWarn = document.getElementById('noUrlWarnBanner');
-
-    let img = null, imgDataUrl = null, sourceFileName = 'banner', layout = null;
-
-    dropzone.addEventListener('click', () => fileInput.click());
-    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
-    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
-    dropzone.addEventListener('drop', e => {
-      e.preventDefault(); dropzone.classList.remove('drag');
-      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
-
-    function handleFile(file) {
-      if (!file.type.startsWith('image/')) return;
-      sourceFileName = file.name.replace(/\.[^.]+$/, '') || 'banner';
-      const reader = new FileReader();
-      reader.onload = e => {
-        const image = new Image();
-        image.onload = () => {
-          const down = downscaleToDataUrl(image, 800);
-          imgDataUrl = down.dataUrl;
-          const finalImg = new Image();
-          finalImg.onload = () => {
-            img = finalImg;
-            workspace.classList.add('active');
-            render();
-          };
-          finalImg.src = down.dataUrl;
-        };
-        image.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function computeLayout() {
-      // "contain": la imagen siempre entra completa dentro del lienzo, sin recortes.
-      // Se agranda o achica según haga falta; el eje sobrante queda con franjas negras.
-      const scale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
-      const scaledW = img.naturalWidth * scale;
-      const scaledH = img.naturalHeight * scale;
-      const left = (W - scaledW) / 2;
-      const top = (H - scaledH) / 2;
-      return { scaledW, scaledH, left, top };
-    }
-
-    function render() {
-      if (!img) return;
-      canvas.width = W; canvas.height = H;
-      layout = computeLayout();
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, W, H);
-      ctx.drawImage(img, layout.left, layout.top, layout.scaledW, layout.scaledH);
-
-      // cruz decorativa (también clickeable en el export, va sobre el link entero)
-      const cx = W - 21, cy = 21;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 13, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.6;
-      const r = 5;
-      ctx.beginPath();
-      ctx.moveTo(cx - r, cy - r); ctx.lineTo(cx + r, cy + r);
-      ctx.moveTo(cx + r, cy - r); ctx.lineTo(cx - r, cy + r);
-      ctx.stroke();
-
-      const vBars = Math.round(H - layout.scaledH);
-      const hBars = Math.round(W - layout.scaledW);
-      if (vBars > 0) {
-        dimsEl.innerHTML = `Franjas negras: <b>${vBars}px</b> totales (arriba y abajo)`;
-      } else if (hBars > 0) {
-        dimsEl.innerHTML = `Franjas negras: <b>${hBars}px</b> totales (a los costados)`;
-      } else {
-        dimsEl.innerHTML = `La imagen ajusta exacto a ${W}×${H}`;
-      }
-    }
-
-    urlInput.addEventListener('input', () => { if (urlInput.value.trim()) noUrlWarn.classList.remove('show'); });
-
-    exportBtn.addEventListener('click', () => {
-      if (!img) return;
-      const url = urlInput.value.trim();
-      if (!url) { noUrlWarn.classList.add('show'); return; }
-      noUrlWarn.classList.remove('show');
-
-      let finalUrl = url;
-      if (!/^https?:\/\//i.test(finalUrl)) finalUrl = 'https://' + finalUrl;
-
-      // posiciones en % relativas al lienzo 120x240, para que el contenedor
-      // (bloqueado por aspect-ratio) escale bien sin importar el tamaño real.
-      const { scaledW, scaledH, left, top } = layout;
-      const leftPct = (left / W) * 100;
-      const topPct = (top / H) * 100;
-      const wPct = (scaledW / W) * 100;
-      const hPct = (scaledH / H) * 100;
-
-      // escapamos comillas por si el link las trajera, para no romper el atributo onclick
-      const safeUrl = finalUrl.replace(/"/g, '%22').replace(/'/g, '%27');
-
-      // tracking de impresiones: opcional. Si no se cargó nada, no se agrega nada al HTML.
-      const trackingUrl = trackingInput.value.trim();
-      let impressionPixel = '';
-      if (trackingUrl) {
-        const safeTrackingUrl = trackingUrl.replace(/"/g, '%22').replace(/'/g, '%27');
-        impressionPixel = `  <img src="${safeTrackingUrl}" width="1" height="1" alt="" style="position:absolute;left:-9999px;top:-9999px;">\n`;
-      }
-
-      const html = `<!-- HTML Generado por herramienta interna -->
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="ad.size" content="width=${W},height=${H}">
-<title>Creative</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background-color: rgb(0, 0, 0); cursor: pointer; }
-  .stage-wrap {
-    width: 100%; height: 100%; min-height: 100vh;
-    display: flex; justify-content: center; align-items: center;
-  }
-  .stage {
-    height: 100vh; width: auto; aspect-ratio: ${W} / ${H};
-    position: relative; overflow: hidden; background-color: rgb(0, 0, 0);
-  }
-  .stage img { position: absolute; display: block; }
-  .stage .xbtn {
-    position: absolute; top: 3%; right: 3%; width: 11%; aspect-ratio: 1 / 1;
-    border-radius: 50%; background: rgba(0,0,0,.55); color: #fff;
-    font-family: Arial, sans-serif; font-size: 55%; line-height: 2.1;
-    text-align: center; z-index: 2;
-  }
-</style>
-</head>
-<body onclick="window.open('${safeUrl}', '_blank')">
-${impressionPixel}  <div class="stage-wrap">
-    <div class="stage">
-      <img src="${imgDataUrl}" alt=""
-        style="left:${leftPct}%; top:${topPct}%; width:${wPct}%; height:${hPct}%;">
-      <div class="xbtn">&#10005;</div>
-    </div>
-  </div>
-</body>
-</html>
-<!-- HTML Generado por herramienta interna -->`;
-
-      const blob = new Blob([html], { type: 'text/html' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${sourceFileName}_${W}x${H}.html`;
-      a.click();
-    });
-
-    resetBtn.addEventListener('click', () => {
-      img = null; imgDataUrl = null; layout = null;
-      workspace.classList.remove('active'); fileInput.value = ''; urlInput.value = '';
-      trackingInput.value = '';
-      noUrlWarn.classList.remove('show');
-    });
-  })();
-
-  // ================= CARRUSEL TAB =================
-  (function() {
-    const W = 120, H = 240;
-    const fixedInput = document.getElementById('fixedInputCarousel');
-    const fixedInfo = document.getElementById('fixedInfoCarousel');
-    const slidesListEl = document.getElementById('slidesListCarousel');
-    const addSlideBtn = document.getElementById('addSlideBtn');
-    const intervalInput = document.getElementById('intervalInputCarousel');
-    const warnEl = document.getElementById('warnCarousel');
-    const stageEl = document.getElementById('stagePreviewCarousel');
-    const trackEl = document.getElementById('trackPreviewCarousel');
-    const fixedOverlayEl = document.getElementById('fixedOverlayPreview');
-    const dimsEl = document.getElementById('dimsCarousel');
-    const exportBtn = document.getElementById('exportCarouselBtn');
-    const resetBtn = document.getElementById('resetCarouselBtn');
-
-    const TRANSITION_MS = 450; // duración del deslizamiento
-
-    let fixedImg = null; // { dataUrl, imgEl, w, h }
-    let slides = [];     // [{ id, dataUrl, imgEl, w, h, name, link }]
-    let idCounter = 0;
-    let previewTimer = null;
-    let previewIdx = 0;
-
-    function showWarn(msg) {
-      warnEl.textContent = msg;
-      warnEl.classList.toggle('show', !!msg);
-    }
-
-    function loadImageFile(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => {
-          const im = new Image();
-          im.onload = () => {
-            const down = downscaleToDataUrl(im, 800);
-            const finalImg = new Image();
-            finalImg.onload = () => resolve({ dataUrl: down.dataUrl, imgEl: finalImg, w: down.w, h: down.h });
-            finalImg.onerror = reject;
-            finalImg.src = down.dataUrl;
-          };
-          im.onerror = reject;
-          im.src = e.target.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+      runExport({
+        items: list.items, selectedItem: list.current, onlySelected,
+        primary: downloadBtn, single: downloadOneBtn,
+        makeBlob: it => canvasToBlob(renderOffscreen(it, it.w, it.h, true, format), format, quality),
+        fileName: (it, ext) => `${it.name}.${ext}`,
+        zipName: `imagenes-${extFromMime(format)}.zip`
       });
     }
-
-    // ---------- imagen fija ----------
-    fixedInput.addEventListener('change', async e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      try {
-        fixedImg = await loadImageFile(file);
-        fixedInfo.textContent = file.name + ' — ' + fixedImg.w + '×' + fixedImg.h + 'px';
-        fixedOverlayEl.src = fixedImg.dataUrl;
-        fixedOverlayEl.style.display = 'block';
-        restartPreview();
-      } catch (err) {
-        fixedInfo.textContent = 'No se pudo leer la imagen.';
-      }
-    });
-
-    // ---------- slides ----------
-    function addSlide() {
-      slides.push({ id: idCounter++, dataUrl: null, imgEl: null, w: 0, h: 0, name: '', link: '' });
-      renderSlidesList();
-    }
-
-    function removeSlide(id) {
-      slides = slides.filter(s => s.id !== id);
-      renderSlidesList();
-      restartPreview();
-    }
-
-    function renderSlidesList() {
-      slidesListEl.innerHTML = '';
-      if (!slides.length) {
-        const empty = document.createElement('div');
-        empty.style.cssText = 'padding:12px;font-size:12.5px;color:var(--text-dim);background:var(--surface-2);';
-        empty.textContent = 'Todavía no agregaste ningún slide.';
-        slidesListEl.appendChild(empty);
-        return;
-      }
-      slides.forEach((slide) => {
-        const row = document.createElement('div');
-        row.className = 'preset-row';
-        row.style.cssText = 'flex-direction:column;align-items:stretch;gap:7px;padding:12px 11px;';
-
-        const topRow = document.createElement('div');
-        topRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
-
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.style.flex = '1';
-        fileInput.addEventListener('change', async ev => {
-          const file = ev.target.files[0];
-          if (!file) return;
-          try {
-            const loaded = await loadImageFile(file);
-            Object.assign(slide, loaded);
-            status.textContent = file.name + ' — ' + slide.w + '×' + slide.h + 'px';
-            restartPreview();
-          } catch (err) {
-            status.textContent = 'No se pudo leer la imagen.';
-          }
-        });
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'del';
-        delBtn.type = 'button';
-        delBtn.textContent = '✕';
-        delBtn.title = 'Quitar slide';
-        delBtn.addEventListener('click', () => removeSlide(slide.id));
-
-        topRow.appendChild(fileInput);
-        topRow.appendChild(delBtn);
-
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.placeholder = 'Nombre (opcional, solo referencia — ej: Facu)';
-        nameInput.value = slide.name;
-        nameInput.addEventListener('input', () => { slide.name = nameInput.value; });
-
-        const linkInput = document.createElement('input');
-        linkInput.type = 'text';
-        linkInput.placeholder = 'https://... (link de este slide)';
-        linkInput.value = slide.link;
-        linkInput.addEventListener('input', () => { slide.link = linkInput.value; });
-
-        const status = document.createElement('div');
-        status.style.cssText = 'font-size:11.5px;color:var(--text-dim);';
-        status.textContent = slide.dataUrl ? (slide.w + '×' + slide.h + 'px cargada') : 'Sin imagen';
-
-        row.appendChild(topRow);
-        row.appendChild(nameInput);
-        row.appendChild(linkInput);
-        row.appendChild(status);
-        slidesListEl.appendChild(row);
-      });
-    }
-
-    addSlideBtn.addEventListener('click', addSlide);
-    intervalInput.addEventListener('change', restartPreview);
-
-    // ---------- preview: mismo mecanismo de "track" deslizable que el export ----------
-    function buildTrack(withImg) {
-      trackEl.innerHTML = '';
-      trackEl.style.transition = 'none';
-      trackEl.style.transform = 'translateX(0%)';
-      withImg.forEach(s => {
-        const cell = document.createElement('div');
-        cell.className = 'slide';
-        const img = document.createElement('img');
-        img.src = s.dataUrl;
-        img.alt = '';
-        cell.appendChild(img);
-        trackEl.appendChild(cell);
-      });
-      if (withImg.length > 1) {
-        // duplicado del primero al final, para el loop sin salto
-        const cell = document.createElement('div');
-        cell.className = 'slide';
-        const img = document.createElement('img');
-        img.src = withImg[0].dataUrl;
-        img.alt = '';
-        cell.appendChild(img);
-        trackEl.appendChild(cell);
-      }
-      void trackEl.offsetHeight; // forzar reflow
-      trackEl.style.transition = '';
-    }
-
-    function restartPreview() {
-      clearInterval(previewTimer);
-      const withImg = slides.filter(s => s.imgEl);
-      previewIdx = 0;
-      buildTrack(withImg);
-
-      if (!withImg.length) {
-        dimsEl.textContent = 'Cargá al menos una imagen.';
-        return;
-      }
-      dimsEl.textContent = 'Mostrando: ' + (withImg[0].name || 'slide sin nombre');
-
-      if (withImg.length > 1) {
-        const ms = Math.max(1, parseFloat(intervalInput.value) || 3) * 1000;
-        const n = withImg.length;
-        previewTimer = setInterval(() => {
-          previewIdx++;
-          trackEl.style.transition = `transform ${TRANSITION_MS}ms ease`;
-          trackEl.style.transform = `translateX(-${previewIdx * 100}%)`;
-          const realIdx = previewIdx % n;
-          dimsEl.textContent = 'Mostrando: ' + (withImg[realIdx].name || 'slide sin nombre');
-          if (previewIdx === n) {
-            setTimeout(() => {
-              trackEl.style.transition = 'none';
-              trackEl.style.transform = 'translateX(0%)';
-              previewIdx = 0;
-              void trackEl.offsetHeight;
-            }, TRANSITION_MS + 20);
-          }
-        }, ms);
-      }
-    }
-
-    // ---------- export ----------
-    exportBtn.addEventListener('click', () => {
-      const validSlides = slides.filter(s => s.dataUrl && s.link.trim());
-      if (!validSlides.length) {
-        showWarn('Agregá al menos un slide con imagen y link antes de exportar.');
-        return;
-      }
-      const incomplete = slides.some(s => (s.dataUrl && !s.link.trim()) || (!s.dataUrl && s.link.trim()));
-      if (incomplete) {
-        showWarn('Hay un slide con imagen pero sin link (o al revés) — se va a exportar sin ese slide. Revisalo si no era la intención.');
-      } else {
-        showWarn('');
-      }
-
-      const intervalMs = Math.max(1, parseFloat(intervalInput.value) || 3) * 1000;
-
-      const links = validSlides.map(s => s.link.trim().replace(/^(?!https?:\/\/)/, 'https://'));
-
-      // track: un <div class="slide"> por cada imagen + el primero duplicado al final para el loop
-      const trackCells = validSlides.map(s => `<div class="slide"><img src="${s.dataUrl}" alt=""></div>`).join('');
-      const loopCell = validSlides.length > 1
-        ? `<div class="slide"><img src="${validSlides[0].dataUrl}" alt=""></div>`
-        : '';
-
-      const fixedMarkup = fixedImg
-        ? `<img class="fixed-overlay" src="${fixedImg.dataUrl}" alt="">`
-        : '';
-
-      const html = `<!-- HTML Generado por herramienta interna -->
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="ad.size" content="width=${W},height=${H}">
-<title>Creative</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background-color: rgb(0, 0, 0); cursor: pointer; }
-  .stage-wrap {
-    width: 100%; height: 100%; min-height: 100vh;
-    display: flex; justify-content: center; align-items: center;
-  }
-  .stage {
-    height: 100vh; width: auto; aspect-ratio: ${W} / ${H};
-    position: relative; overflow: hidden; background-color: rgb(0, 0, 0);
-  }
-  .track { position: absolute; top: 0; left: 0; height: 100%; display: flex; transition: transform ${TRANSITION_MS}ms ease; }
-  .track .slide { flex: 0 0 100%; width: 100%; height: 100%; }
-  .track .slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .fixed-overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; z-index: 2; }
-</style>
-</head>
-<body>
-  <div class="stage-wrap">
-    <div class="stage" id="stage">
-      <div class="track" id="track">${trackCells}${loopCell}</div>
-      ${fixedMarkup}
-    </div>
-  </div>
-  <script>
-    var links = ${JSON.stringify(links)};
-    var n = links.length;
-    var idx = 0;
-    var stage = document.getElementById('stage');
-    var track = document.getElementById('track');
-    function setLink(i) { stage.setAttribute('data-link', links[i]); }
-    setLink(0);
-    function goNext() {
-      idx++;
-      track.style.transition = 'transform ${TRANSITION_MS}ms ease';
-      track.style.transform = 'translateX(-' + (idx * 100) + '%)';
-      setLink(idx % n);
-      if (idx === n) {
-        setTimeout(function () {
-          track.style.transition = 'none';
-          track.style.transform = 'translateX(0%)';
-          idx = 0;
-          void track.offsetHeight;
-        }, ${TRANSITION_MS} + 20);
-      }
-    }
-    if (n > 1) { setInterval(goNext, ${intervalMs}); }
-    stage.addEventListener('click', function () {
-      var link = stage.getAttribute('data-link');
-      if (link) window.open(link, '_blank');
-    });
-  <\/script>
-</body>
-</html>
-<!-- HTML Generado por herramienta interna -->`;
-
-      const blob = new Blob([html], { type: 'text/html' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `carrusel_${W}x${H}.html`;
-      a.click();
-    });
-
-    resetBtn.addEventListener('click', () => {
-      fixedImg = null; slides = [];
-      clearInterval(previewTimer);
-      fixedInput.value = ''; fixedInfo.textContent = 'Ninguna cargada.';
-      fixedOverlayEl.removeAttribute('src'); fixedOverlayEl.style.display = 'none';
-      intervalInput.value = 3;
-      showWarn('');
-      renderSlidesList();
-      restartPreview();
-    });
-
-    renderSlidesList();
-    restartPreview();
+    downloadBtn.addEventListener('click', () => doExport(false));
+    downloadOneBtn.addEventListener('click', () => doExport(true));
+    resetBtn.addEventListener('click', () => list.clear());
   })();
 </script>
 </body>
